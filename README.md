@@ -27,11 +27,15 @@ python3 -m http.server 8765
 
 ## Публикация
 
-Папка — обычная статика. Достаточно залить её на любой хостинг:
+Живая версия: **https://kenoidk13-byte.github.io/disciplina/**
 
+Репозиторий: **https://github.com/kenoidk13-byte/disciplina**
+
+Папка — обычная статика. Подойдёт любой хостинг статики:
+
+- **GitHub Pages**: уже включён (ветка `main`, корень). Пуш в `main` обновляет сайт за ~30 секунд.
 - **Vercel**: `vercel` в папке проекта (или drag & drop на vercel.com).
 - **Netlify**: перетащить папку в app.netlify.com/drop.
-- **GitHub Pages**: закоммитить и включить Pages.
 
 HTTPS обязателен для установки PWA и service worker (localhost — исключение).
 
