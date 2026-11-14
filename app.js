@@ -57,6 +57,14 @@
       if (!p.weights || typeof p.weights !== 'object') p.weights = {};
       if (p.buildMode !== 'custom') p.buildMode = 'auto';
       if (!Array.isArray(p.customDays)) p.customDays = [];
+      p.customDays = p.customDays.map(function (d) {
+        return { groups: migrateGroups(d && d.groups) };
+      });
+      if (p.program && Array.isArray(p.program.days)) {
+        p.program.days.forEach(function (d) {
+          if (Array.isArray(d.groups)) d.groups = migrateGroups(d.groups);
+        });
+      }
       return p;
     } catch (e) {
       return base;
@@ -173,6 +181,32 @@
     return s;
   }
 
+  /* порядок упражнений в дне: крупные многосуставные → изоляция крупных мышц
+     → руки → икры → пресс (ACSM: большие группы и многосуставные раньше) */
+  var PAT_RANK = {
+    squat: 0, hinge: 0, lunge: 0, hpull: 0, vpull: 0, hpush: 0, vpush: 0,
+    quad_iso: 1, ham_iso: 1, glute_iso: 1, chest_iso: 1, lat_iso: 1, traps: 1,
+    delt_iso: 2, rear_delt: 2,
+    biceps: 3, triceps: 3, calves: 4, core: 5
+  };
+  var GROUP_RANK = {
+    quads: 0, ham: 1, glutes: 2, back: 3, traps: 4,
+    chest: 5, shoulders: 6, biceps: 7, triceps: 8, calves: 9, abs: 10
+  };
+
+  function orderItems(items) {
+    return items.slice().sort(function (a, b) {
+      var ea = byId(a.exId), eb = byId(b.exId);
+      if (!ea || !eb) return 0;
+      var ra = PAT_RANK[ea.pat], rb = PAT_RANK[eb.pat];
+      ra = ra === undefined ? 9 : ra;
+      rb = rb === undefined ? 9 : rb;
+      if (ra !== rb) return ra - rb;
+      var ga = GROUP_RANK[ea.g], gb = GROUP_RANK[eb.g];
+      return (ga === undefined ? 9 : ga) - (gb === undefined ? 9 : gb);
+    });
+  }
+
   function itemFrom(ex, slotPats) {
     var sc = scheme(ex);
     return {
@@ -287,18 +321,29 @@
       take(items, dayIds, weekUse, pickBest(cands, weekUse, recent, dayIds), slot.pats);
     });
     if (items.length < 5) fillDay(items, dayIds, p, weekUse, recent);
-    return fitDay(items, dayIds, p, weekUse, recent);
+    return orderItems(fitDay(items, dayIds, p, weekUse, recent));
   }
 
   /* ---------------- конструктор дней по группам ---------------- */
 
-  var CUSTOM_ORDER = ['legs', 'back', 'chest', 'shoulders', 'arms', 'abs'];
-  var CUSTOM_CAP = { legs: 3, back: 3, chest: 2, shoulders: 2, arms: 3, abs: 2 };
+  var CUSTOM_ORDER = ['legs', 'back', 'chest', 'shoulders', 'biceps', 'triceps', 'abs'];
+  var CUSTOM_CAP = { legs: 3, back: 3, chest: 2, shoulders: 2, biceps: 2, triceps: 2, abs: 2 };
   var DEFAULT_SPLITS = {
-    2: [['legs', 'abs'], ['chest', 'back', 'shoulders', 'arms']],
-    3: [['legs', 'abs'], ['chest', 'back'], ['shoulders', 'arms']],
-    4: [['legs'], ['chest', 'shoulders'], ['back', 'arms'], ['legs', 'abs']]
+    2: [['legs', 'abs'], ['chest', 'back', 'shoulders', 'biceps', 'triceps']],
+    3: [['legs', 'abs'], ['chest', 'back'], ['shoulders', 'biceps', 'triceps']],
+    4: [['legs'], ['chest', 'shoulders', 'triceps'], ['back', 'biceps'], ['legs', 'abs']]
   };
+
+  /* «Руки» из старых сохранений раскладываются на бицепс и трицепс */
+  function migrateGroups(groups) {
+    var out = [];
+    function add(k) { if (out.indexOf(k) === -1) out.push(k); }
+    (Array.isArray(groups) ? groups : []).forEach(function (k) {
+      if (k === 'arms') { add('biceps'); add('triceps'); }
+      else if (groupDef(k)) add(k);
+    });
+    return out;
+  }
 
   function groupDef(k) {
     for (var i = 0; i < D.BUILD_GROUPS.length; i++) {
@@ -337,7 +382,7 @@
     var arr = [];
     for (var i = 0; i < n; i++) {
       var d = prev[i];
-      arr.push({ groups: d && Array.isArray(d.groups) ? d.groups.slice() : [] });
+      arr.push({ groups: d && Array.isArray(d.groups) ? migrateGroups(d.groups) : [] });
     }
     if (fillDefaults) {
       var split = DEFAULT_SPLITS[n] || DEFAULT_SPLITS[3];
@@ -354,6 +399,7 @@
   function ensureCustomDays() { return normalizeCustomDays(true); }
 
   function buildCustomDay(groups, p, weekUse, recent) {
+    groups = migrateGroups(groups);
     var order = CUSTOM_ORDER.filter(function (g) { return groups.indexOf(g) !== -1; });
     if (!order.length) return [];
 
@@ -387,7 +433,7 @@
       fillDay(items, dayIds, p.filter(function (e) { return mine.indexOf(e.g) !== -1; }), weekUse, recent);
     }
     var mineAll = musclesOf(groups);
-    return fitDay(items, dayIds, p.filter(function (e) { return mineAll.indexOf(e.g) !== -1; }), weekUse, recent);
+    return orderItems(fitDay(items, dayIds, p.filter(function (e) { return mineAll.indexOf(e.g) !== -1; }), weekUse, recent));
   }
 
   function generateProgram() {
@@ -698,6 +744,7 @@
     save: save, go: go, toast: toast, render: render, esc: esc, num: num, clamp: clamp,
     kg: kg, mmss: mmss, mins: mins, plural: plural, dateShort: dateShort, dateLong: dateLong,
     byId: byId, pool: pool, isAvailable: isAvailable, scheme: scheme, itemFrom: itemFrom,
+    orderItems: orderItems, PAT_RANK: PAT_RANK,
     generateProgram: generateProgram, regenerateDay: regenerateDay, pruneProgram: pruneProgram,
     customDaysPlan: customDaysPlan, ensureCustomDays: ensureCustomDays,
     customDayName: customDayName, groupTitle: groupTitle,

@@ -1,5 +1,5 @@
 /* Disciplina — офлайн-кэш оболочки */
-var CACHE = 'disciplina-v9';
+var CACHE = 'disciplina-v10';
 var FILES = [
   './',
   'index.html',

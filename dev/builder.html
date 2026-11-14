@@ -24,7 +24,7 @@
     ck('дни предзаполнены', S.customDays.length === 3 && S.customDays.every(function (d) { return d.groups.length > 0; }),
       JSON.stringify(S.customDays));
     ck('редакторы дней', qa('.bday').length === 3, qa('.bday').length);
-    ck('чипы групп', qa('[data-act="dayGroup"]').length === 18, qa('[data-act="dayGroup"]').length);
+    ck('чипы групп', qa('[data-act="dayGroup"]').length === 21, qa('[data-act="dayGroup"]').length);
 
     /* очистить второй день */
     var guard = 0;
@@ -33,11 +33,12 @@
     ck('кнопка заблокирована', q('[data-act="builderDone"]').disabled === true);
     ck('подсказка на пустом дне', qa('.bday.empty').length === 1, qa('.bday.empty').length);
 
-    /* собрать второй день: спина + руки */
+    /* собрать второй день: спина + бицепс + трицепс */
     q('[data-day="1"][data-g="back"]').click();
-    q('[data-day="1"][data-g="arms"]').click();
-    ck('день собран вручную', S.customDays[1].groups.join(',') === 'back,arms', S.customDays[1].groups.join(','));
-    ck('название дня', q('.bday:nth-child(2) b').textContent === 'Спина · Руки', q('.bday:nth-child(2) b').textContent);
+    q('[data-day="1"][data-g="biceps"]').click();
+    q('[data-day="1"][data-g="triceps"]').click();
+    ck('день собран вручную', S.customDays[1].groups.join(',') === 'back,biceps,triceps', S.customDays[1].groups.join(','));
+    ck('название дня', q('.bday:nth-child(2) b').textContent === 'Спина · Бицепс · Трицепс', q('.bday:nth-child(2) b').textContent);
     ck('кнопка активна', q('[data-act="builderDone"]').disabled === false);
 
     q('[data-act="builderDone"]').click();
@@ -72,7 +73,7 @@
     /* сохранение в localStorage */
     var saved = JSON.parse(localStorage.getItem('disciplina.v1'));
     ck('режим сохранён', saved.buildMode === 'custom', saved.buildMode);
-    ck('группы сохранены', JSON.stringify(saved.customDays[1].groups) === '["back","arms"]', JSON.stringify(saved.customDays[1].groups));
+    ck('группы сохранены', JSON.stringify(saved.customDays[1].groups) === '["back","biceps","triceps"]', JSON.stringify(saved.customDays[1].groups));
 
     /* тренировка по кастомному дню */
     DS.go('program');
@@ -86,10 +87,10 @@
     DS.go('day');
     DS.regenerateDay('B');
     var d2 = S.program.days.filter(function (d) { return d.key === 'B'; })[0];
-    ck('пересборка дня сохранила группы', d2.groups.join(',') === 'back,arms', d2.groups.join(','));
+    ck('пересборка дня сохранила группы', d2.groups.join(',') === 'back,biceps,triceps', d2.groups.join(','));
     ck('день B снова по группам', d2.items.every(function (it) {
       var ex = DS.byId(it.exId);
-      return muscles(['back', 'arms']).indexOf(ex.g) !== -1;
+      return muscles(['back', 'biceps', 'triceps']).indexOf(ex.g) !== -1;
     }));
 
     /* смена числа дней в кастомном режиме */
@@ -113,7 +114,7 @@
     S.customDays = [
       { groups: ['legs'] },
       { groups: ['chest'] },
-      { groups: ['back', 'arms'] },
+      { groups: ['back', 'biceps'] },
       { groups: ['shoulders'] }
     ];
     DS.generateProgram();
@@ -130,6 +131,21 @@
     ck('скудный набор: без чужих групп', sparseBad.length === 0, sparseBad.join(','));
     ck('скудный набор: день без упражнений заменён схемой', S.program.days[3].name === 'Объём', S.program.days[3].name);
     ck('скудный набор: ни один день не пуст', S.program.days.every(function (d) { return d.items.length > 0; }));
+
+    /* старое сохранение: «Руки» раскладываются на бицепс и трицепс */
+    S.selected = ['bb_curl', 'pushdown', 'bench', 'squat', 'bb_row', 'plank'];
+    S.daysPerWeek = 3;
+    S.customDays = [{ groups: ['arms'] }, { groups: ['chest'] }, { groups: ['back'] }];
+    var mig = DS.customDaysPlan();
+    ck('миграция «Руки» → бицепс и трицепс', mig[0].groups.join(',') === 'biceps,triceps', mig[0].groups.join(','));
+    ck('миграция: название дня', DS.customDayName(mig[0].groups) === 'Бицепс · Трицепс', DS.customDayName(mig[0].groups));
+    DS.generateProgram();
+    var migDay = S.program.days[0];
+    ck('программа мигрировала «Руки»', migDay.groups.join(',') === 'biceps,triceps', migDay.groups.join(','));
+    ck('в дне только бицепс и трицепс', migDay.items.every(function (it) {
+      var ex = DS.byId(it.exId);
+      return ex.g === 'biceps' || ex.g === 'triceps';
+    }), migDay.items.map(function (it) { return DS.byId(it.exId).g; }).join(','));
 
     var fails = log.filter(function (l) { return l.indexOf('FAIL') === 0; }).length;
     document.title = fails ? 'FAIL' : 'PASS';

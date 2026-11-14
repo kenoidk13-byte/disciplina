@@ -203,7 +203,8 @@ var D = (function () {
     { k: 'back', t: 'Спина', g: ['back', 'traps'] },
     { k: 'chest', t: 'Грудь', g: ['chest'] },
     { k: 'shoulders', t: 'Плечи', g: ['shoulders'] },
-    { k: 'arms', t: 'Руки', g: ['biceps', 'triceps'] },
+    { k: 'biceps', t: 'Бицепс', g: ['biceps'] },
+    { k: 'triceps', t: 'Трицепс', g: ['triceps'] },
     { k: 'abs', t: 'Пресс', g: ['abs'] }
   ];
 
@@ -213,7 +214,8 @@ var D = (function () {
     back: ['vpull', 'hpull', 'hinge', 'lat_iso', 'traps'],
     chest: ['hpush', 'chest_iso'],
     shoulders: ['vpush', 'delt_iso', 'rear_delt'],
-    arms: ['biceps', 'triceps'],
+    biceps: ['biceps'],
+    triceps: ['triceps'],
     abs: ['core']
   };
 

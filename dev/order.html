@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>order</title>
+<link rel="stylesheet" href="../app.css"></head><body>
+<div id="app" class="app"></div>
+<pre id="out" style="padding:14px;font-size:12px;white-space:pre-wrap;color:#9f9"></pre>
+<script src="../data.js"></script><script src="../app.js"></script><script src="../ui.js"></script>
+<script>
+(function () {
+  var log = [];
+  function ck(n, c, x) { log.push((c ? 'OK   ' : 'FAIL ') + n + (x !== undefined ? ' :: ' + x : '')); }
+  function key(it) {
+    var e = DS.byId(it.exId);
+    var r = DS.PAT_RANK[e.pat];
+    return r === undefined ? 9 : r;
+  }
+  function sortedDay(items) {
+    for (var i = 1; i < items.length; i++) {
+      if (key(items[i - 1]) > key(items[i])) return false;
+    }
+    return true;
+  }
+  try {
+    var S = DS.S;
+
+    /* вся программа: база раньше изоляции, крупные раньше мелких */
+    var bad = [], days = 0;
+    ['mass', 'maintain', 'cut'].forEach(function (goal) {
+      [2, 3, 4].forEach(function (n) {
+        S.goal = goal; S.daysPerWeek = n;
+        ['auto', 'custom'].forEach(function (mode) {
+          S.buildMode = mode;
+          if (mode === 'custom') { S.customDays = []; DS.ensureCustomDays(); }
+          DS.generateProgram();
+          S.program.days.forEach(function (d) {
+            days++;
+            if (!sortedDay(d.items)) {
+              bad.push(goal + '/' + n + '/' + mode + '/' + d.key + ': ' +
+                d.items.map(function (it) { return DS.byId(it.exId).n; }).join(' → '));
+            }
+          });
+        });
+      });
+    });
+    ck('порядок во всех днях: база → изоляция', bad.length === 0, bad[0] || (days + ' дней'));
+
+    /* в каждом дне первое упражнение — многосуставное */
+    S.goal = 'mass'; S.daysPerWeek = 4; S.buildMode = 'auto'; DS.generateProgram();
+    var firsts = S.program.days.map(function (d) { return key(d.items[0]); });
+    ck('день начинается с базы', firsts.every(function (r) { return r === 0; }),
+      S.program.days.map(function (d) { return DS.byId(d.items[0].exId).n; }).join(' | '));
+
+    /* грудь: жим раньше разведений; руки — после груди и спины */
+    var day = S.program.days.filter(function (d) {
+      var ids = d.items.map(function (it) { return it.exId; });
+      return ids.indexOf('bench') !== -1 && ids.indexOf('db_fly') !== -1;
+    })[0];
+    if (day) {
+      var ids = day.items.map(function (it) { return it.exId; });
+      ck('жим лёжа раньше разведений', ids.indexOf('bench') < ids.indexOf('db_fly'), ids.join(', '));
+    }
+
+    S.selected = ['bench', 'db_fly', 'bb_row', 'bb_curl', 'pushdown', 'squat', 'plank', 'calf_stand'];
+    S.buildMode = 'custom'; S.daysPerWeek = 2;
+    S.customDays = [{ groups: ['chest', 'biceps', 'triceps'] }, { groups: ['legs', 'abs'] }];
+    DS.generateProgram();
+    var chestDay = S.program.days[0];
+    var cids = chestDay.items.map(function (it) { return it.exId; });
+    ck('грудь раньше рук', cids.indexOf('bench') !== -1 && cids.indexOf('bb_curl') !== -1 &&
+      cids.indexOf('bench') < cids.indexOf('bb_curl'), cids.join(', '));
+    ck('жим раньше изоляции груди', cids.indexOf('bench') < cids.indexOf('db_fly'), cids.join(', '));
+
+    /* пресс — в конце, а не в начале */
+    var anyCore = S.program.days.filter(function (d) {
+      return d.items.some(function (it) { return DS.byId(it.exId).pat === 'core'; });
+    })[0];
+    if (anyCore) {
+      ck('пресс в конце дня', key(anyCore.items[anyCore.items.length - 1]) === 5,
+        anyCore.items.map(function (it) { return DS.byId(it.exId).n; }).join(' → '));
+    }
+
+    /* сортировка не ломает длительность */
+    S.goal = 'mass'; S.daysPerWeek = 3; S.buildMode = 'auto'; DS.generateProgram();
+    var short = S.program.days.filter(function (d) { return DS.daySeconds(d.items) < DS.MIN_SESSION; });
+    ck('дни по-прежнему >= 50 мин', short.length === 0,
+      S.program.days.map(function (d) { return Math.round(DS.daySeconds(d.items) / 60); }).join('/'));
+
+    var fails = log.filter(function (l) { return l.indexOf('FAIL') === 0; }).length;
+    document.title = fails ? 'FAIL' : 'PASS';
+    document.getElementById('out').textContent = 'RESULT ' + document.title + '\n' + log.join('\n');
+  } catch (e) {
+    document.title = 'ERROR';
+    document.getElementById('out').textContent = 'ERROR ' + e.message + '\n' + e.stack + '\n\n' + log.join('\n');
+  }
+})();
+</script></body></html>
