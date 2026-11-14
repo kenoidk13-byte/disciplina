@@ -114,6 +114,36 @@
 
     DS.startSession(S.program.days[0]);
     ck('сессия: подсказка RIR', /RIR/.test((q('.sess-hint') || {}).textContent || ''), (q('.sess-hint') || {}).textContent);
+
+    /* ---- ротация «Таза» ----
+       Каждая следующая сборка записывает прошлую программу в историю,
+       поэтому слот «Таз» должен брать самое давнее упражнение, а не
+       один и тот же вариант по объёму. */
+    S.goal = 'mass'; S.daysPerWeek = 4; S.program = null; S.history = [];
+    var hingeSeen = {}, hyperAt = 0;
+    for (var gi = 0; gi < 8; gi++) {
+      DS.generateProgram();
+      var hinges = [];
+      S.program.days.forEach(function (d) {
+        d.items.forEach(function (it) {
+          var ex = DS.byId(it.exId);
+          if (ex && ex.pat === 'hinge') hinges.push(it.exId);
+        });
+      });
+      hinges.forEach(function (id) { hingeSeen[id] = (hingeSeen[id] || 0) + 1; });
+      if (!hyperAt && hinges.indexOf('hyperext') !== -1) hyperAt = gi + 1;
+      S.history.unshift({
+        id: 'rot' + gi, ts: Date.now() + gi, dayKey: 'A',
+        entries: S.program.days.reduce(function (acc, d) {
+          d.items.forEach(function (it) { acc.push({ exId: it.exId, sets: [] }); });
+          return acc;
+        }, [])
+      });
+    }
+    ck('ротация таза: гиперэкстензия появляется', hyperAt > 0,
+      hyperAt ? 'сборка ' + hyperAt : 'нет');
+    ck('ротация таза: варианты сменяются', Object.keys(hingeSeen).length >= 3,
+      Object.keys(hingeSeen).join(','));
   } catch (e) {
     log.push('ERROR ' + (e && e.message || e) + '\n' + (e && e.stack || ''));
   }

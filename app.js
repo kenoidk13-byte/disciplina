@@ -227,6 +227,20 @@
     return set;
   }
 
+  /* когда упражнение делали в последний раз и сколько раз вообще.
+     История хранится от новых к старым, поэтому первая встреча — самая свежая. */
+  function usageMaps() {
+    var last = {}, count = {};
+    S.history.forEach(function (h, i) {
+      var ts = h.ts || (Date.now() - i * 1000);
+      (h.entries || []).forEach(function (e) {
+        if (last[e.exId] === undefined) last[e.exId] = ts;
+        count[e.exId] = (count[e.exId] || 0) + 1;
+      });
+    });
+    return { last: last, count: count };
+  }
+
   var EQ_PREF = { barbell: 0, smith: 0.3, dumbbell: 0.6, machine: 1, cable: 1.2, kettlebell: 1, bodyweight: 1.6, bands: 2.2 };
 
   var MIN_SESSION = 50 * 60;   /* тренировка не короче 50 минут */
@@ -450,7 +464,13 @@
 
   /* контекст недели: пул, уже использованные упражнения и объём */
   function newContext() {
-    return { pool: pool(), exUse: {}, vol: {}, recent: recentIds(3) };
+    var use = usageMaps();
+    var order = {};
+    D.EXERCISES.forEach(function (e, i) { order[e.id] = i; });
+    return {
+      pool: pool(), exUse: {}, vol: {}, recent: recentIds(3),
+      lastUse: use.last, useCount: use.count, order: order
+    };
   }
 
   function needScore(ex, ctx, dayPrimary) {
@@ -488,6 +508,32 @@
       if (sc > bestScore) { bestScore = sc; best = e; }
     });
     return best;
+  }
+
+  /* Ротация «Таза»: из подходящих вариантов берём тот, который
+     делали давнее всех. Иначе один вариант всегда выигрывает по объёму,
+     а «Гиперэкстензия» и другие не появляются. Свежие упражнения уходят
+     в конец, неиспользованные — в начало. */
+  function lruPick(cands, ctx) {
+    if (!cands.length) return null;
+    var safe = cands.filter(function (e) { return !overHigh(e, ctx.vol); });
+    if (safe.length) cands = safe;
+    var best = null, bestKey = null;
+    cands.forEach(function (e) {
+      var key = [ctx.lastUse[e.id] || 0, ctx.useCount[e.id] || 0, ctx.order[e.id] || 0];
+      if (!bestKey || key[0] < bestKey[0] ||
+          (key[0] === bestKey[0] && key[1] < bestKey[1]) ||
+          (key[0] === bestKey[0] && key[1] === bestKey[1] && key[2] < bestKey[2])) {
+        best = e; bestKey = key;
+      }
+    });
+    return best;
+  }
+
+  function hingeOptions(cands, slot) {
+    if (!slot.pats || slot.pats.indexOf('hinge') === -1) return null;
+    var hs = cands.filter(function (e) { return e.pat === 'hinge'; });
+    return hs.length ? hs : null;
   }
 
   function takeScored(items, dayIds, dayPrimary, ctx, ex, slotPats) {
@@ -555,7 +601,9 @@
         if (!cands.length) cands = relaxed;
       }
       if (!cands.length) return;
-      takeScored(items, dayIds, dayPrimary, ctx, bestByScore(cands, ctx, dayPrimary, dayIds), slot.pats);
+      var pick = hingeOptions(cands, slot);
+      pick = pick ? lruPick(pick, ctx) : bestByScore(cands, ctx, dayPrimary, dayIds);
+      takeScored(items, dayIds, dayPrimary, ctx, pick, slot.pats);
     });
 
     /* добиваем день упражнениями самых отстающих по объёму мышц */
@@ -682,8 +730,8 @@
       cands = fresh(cands, ctx);
       if (!cands.length) return;
 
-      takeScored(items, dayIds, dayPrimary, ctx,
-        bestByScore(cands, ctx, dayPrimary, dayIds), pat ? [pat] : null);
+      var chosen = pat === 'hinge' ? lruPick(cands, ctx) : bestByScore(cands, ctx, dayPrimary, dayIds);
+      takeScored(items, dayIds, dayPrimary, ctx, chosen, pat ? [pat] : null);
     });
 
     /* добиваем объём внутри выбранных групп */
