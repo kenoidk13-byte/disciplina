@@ -30,13 +30,13 @@
     var r = UI.route.name;
     return '<nav class="nav">' +
       '<button data-act="nav" data-to="program" class="' + (r === 'program' ? 'on' : '') + '">' + IC.prog + '<span>Программа</span></button>' +
-      '<button data-act="nav" data-to="history" class="' + (r === 'history' || r === 'detail' ? 'on' : '') + '">' + IC.hist + '<span>История</span></button>' +
+      '<button data-act="nav" data-to="history" class="' + (r === 'history' || r === 'detail' || r === 'exercise' ? 'on' : '') + '">' + IC.hist + '<span>История</span></button>' +
       '<button data-act="nav" data-to="settings" class="' + (r === 'settings' ? 'on' : '') + '">' + IC.set + '<span>Настройки</span></button>' +
       '</nav>';
   }
 
   function showNav(route) {
-    return ['program', 'history', 'detail', 'settings'].indexOf(route) !== -1;
+    return ['program', 'history', 'detail', 'exercise', 'settings'].indexOf(route) !== -1;
   }
 
   function hdr(opts) {
@@ -601,9 +601,10 @@
 
   /* ---------------- history ---------------- */
 
-  function spark(vals) {
+  function spark(vals, w, h, cls) {
     if (vals.length < 2) return '';
-    var w = 76, h = 26, p = 3;
+    w = w || 76; h = h || 26;
+    var p = 3;
     var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
     var rng = (max - min) || 1;
     var pts = vals.map(function (v, i) {
@@ -611,9 +612,84 @@
     });
     var d = pts.map(function (pt, i) { return (i ? 'L' : 'M') + pt[0].toFixed(1) + ' ' + pt[1].toFixed(1); }).join('');
     var last = pts[pts.length - 1];
-    return '<svg class="spark" viewBox="0 0 ' + w + ' ' + h + '" width="' + w + '" height="' + h + '">' +
+    return '<svg class="spark' + (cls ? ' ' + cls : '') + '" viewBox="0 0 ' + w + ' ' + h + '" width="' + w + '" height="' + h + '">' +
       '<path d="' + d + '" fill="none" stroke="var(--acc)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>' +
       '<circle cx="' + last[0].toFixed(1) + '" cy="' + last[1].toFixed(1) + '" r="2.2" fill="var(--acc)"/></svg>';
+  }
+
+  function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+  function monthTitle(ts) {
+    return cap(new Date(ts).toLocaleDateString('ru-RU', { month: 'long', year: 'numeric' }).replace(' г.', ''));
+  }
+
+  function weekdayShort(ts) {
+    return new Date(ts).toLocaleDateString('ru-RU', { weekday: 'short' }).replace('.', '');
+  }
+
+  function fullDate(ts) {
+    var d = new Date(ts);
+    var o = { weekday: 'short', day: 'numeric', month: 'long' };
+    if (d.getFullYear() !== new Date().getFullYear()) o.year = 'numeric';
+    return d.toLocaleDateString('ru-RU', o).replace(' г.', '');
+  }
+
+  function dayMonth(ts) {
+    var d = new Date(ts);
+    var o = { day: 'numeric', month: 'short' };
+    if (d.getFullYear() !== new Date().getFullYear()) o.year = 'numeric';
+    return d.toLocaleDateString('ru-RU', o).replace('.', '').replace(' г.', '');
+  }
+
+  function numRu(v) { return Math.round(v).toLocaleString('ru-RU'); }
+
+  function monthGroups(list) {
+    var out = [], map = {};
+    list.forEach(function (h) {
+      var d = new Date(h.ts);
+      var k = d.getFullYear() + '-' + d.getMonth();
+      if (!map[k]) { map[k] = { ts: h.ts, items: [] }; out.push(map[k]); }
+      map[k].items.push(h);
+    });
+    return out;
+  }
+
+  function exEntry(h, exId) {
+    var es = (h.entries || []).filter(function (e) { return e.exId === exId; });
+    return es[0] || null;
+  }
+
+  function entryStats(e) {
+    var volume = 0, best = null, sets = (e && e.sets) || [];
+    sets.forEach(function (s) {
+      volume += (s.w || 0) * (s.r || 0);
+      if (!best || s.w > best.w || (s.w === best.w && s.r > best.r)) best = s;
+    });
+    return { volume: volume, best: best, bestW: best ? best.w : 0, sets: sets.length };
+  }
+
+  function setLabel(s) {
+    return s.w ? DS.kg(s.w).replace(' кг', '') + '×' + s.r : s.r + ' повт';
+  }
+
+  function sessionExNames(h, max) {
+    var names = (h.entries || []).map(function (e) {
+      var ex = DS.byId(e.exId);
+      return ex ? ex.n : null;
+    }).filter(Boolean);
+    var shown = names.slice(0, max || 3);
+    return shown.join(' · ') + (names.length > shown.length ? ' +' + (names.length - shown.length) : '');
+  }
+
+  function historyItem(h) {
+    var d = new Date(h.ts);
+    var count = (h.entries || []).length;
+    return '<button class="hitem" data-act="detailOpen" data-id="' + h.id + '">' +
+      '<span class="d"><span>' + d.getDate() + '<br>' + weekdayShort(h.ts) + '</span></span>' +
+      '<span class="n"><b>' + DS.esc(h.dayName) + '</b>' +
+      '<span>' + DS.mins(h.duration) + ' мин · ' + count + ' ' + DS.plural(count, 'упражнение', 'упражнения', 'упражнений') + '</span>' +
+      '<span class="ex">' + DS.esc(sessionExNames(h, 3)) + '</span></span>' +
+      '<span class="v">' + (h.volume ? '<b>' + numRu(h.volume) + '</b><i>кг</i>' : '<b>—</b>') + '</span></button>';
   }
 
   function screenHistory() {
@@ -623,42 +699,110 @@
         '<div class="empty"><b>Пока пусто</b><p>Проведи первую тренировку — здесь появятся результаты и прогресс весов.</p></div></div>';
     }
 
-    var list = S.history.slice(0, 40).map(function (h) {
-      var d = new Date(h.ts);
-      var day = d.getDate();
-      var mon = d.toLocaleDateString('ru-RU', { month: 'short' }).replace('.', '');
-      return '<button class="hitem" data-act="detailOpen" data-id="' + h.id + '">' +
-        '<span class="d"><span>' + day + '<br>' + mon + '</span></span>' +
-        '<span class="n"><b>' + DS.esc(h.dayName) + '</b>' +
-        '<span>' + DS.mins(h.duration) + ' мин · ' + h.entries.length + ' ' + DS.plural(h.entries.length, 'упражнение', 'упражнения', 'упражнений') + '</span></span>' +
-        '<span class="v"><b>' + (h.volume ? Math.round(h.volume).toLocaleString('ru-RU') : '—') + '</b>кг</span></button>';
+    var totalVol = 0;
+    S.history.forEach(function (h) { totalVol += h.volume || 0; });
+
+    var limit = UI.histLimit || 60;
+    var shown = S.history.slice(0, limit);
+    var list = monthGroups(shown).map(function (g) {
+      var vol = 0;
+      g.items.forEach(function (h) { vol += h.volume || 0; });
+      return '<div class="mhead"><b>' + monthTitle(g.ts) + '</b><span>' +
+        g.items.length + ' ' + DS.plural(g.items.length, 'тренировка', 'тренировки', 'тренировок') +
+        (vol ? ' · ' + numRu(vol) + ' кг' : '') + '</span></div>' +
+        '<div class="stack-s">' + g.items.map(historyItem).join('') + '</div>';
     }).join('');
 
     var seen = {}, rows = [];
     S.history.forEach(function (h) {
-      h.entries.forEach(function (e) {
+      (h.entries || []).forEach(function (e) {
         if (seen[e.exId]) return;
         seen[e.exId] = true;
         var ex = DS.byId(e.exId);
         if (!ex) return;
-        var series = DS.exerciseSeries(e.exId).filter(function (v) { return v > 0; });
-        if (series.length < 1) return;
-        var last = series[series.length - 1];
-        var first = series[0];
+        var series = DS.exerciseSeries(e.exId);
+        if (!series.length) return;
+        var vals = series.filter(function (v) { return v > 0; });
+        var last = vals.length ? vals[vals.length - 1] : 0;
+        var first = vals.length ? vals[0] : 0;
         var diff = DS.roundW(last - first);
-        rows.push('<div class="prow"><div class="n"><b>' + DS.esc(ex.n) + '</b>' +
-          '<span>' + series.length + ' ' + DS.plural(series.length, 'тренировка', 'тренировки', 'тренировок') + '</span></div>' +
-          spark(series) +
-          '<div><div class="w">' + DS.kg(last) + '</div>' +
-          (diff > 0 ? '<div class="delta">+' + diff + ' кг</div>' : '') + '</div></div>');
+        rows.push('<button class="prow" data-act="exOpen" data-id="' + e.exId + '">' +
+          '<span class="n"><b>' + DS.esc(ex.n) + '</b>' +
+          '<span>' + series.length + ' ' + DS.plural(series.length, 'тренировка', 'тренировки', 'тренировок') + '</span></span>' +
+          (vals.length > 1 ? spark(vals) : '') +
+          '<span class="w">' + (last > 0 ? DS.kg(last).replace(' кг', '') : 'с.в.') +
+          (diff > 0 ? '<i>+' + DS.kg(diff) + '</i>' : '') + '</span>' +
+          '<span class="chev">' + IC.chev + '</span></button>');
       });
     });
 
     return hdr({ mark: true, right: '<button class="iconbtn" data-act="nav" data-to="settings">' + IC.gear + '</button>' }) +
       '<div class="wrap"><div class="proghead"><h1>История</h1>' +
-      '<p class="sub">' + S.history.length + ' ' + DS.plural(S.history.length, 'тренировка', 'тренировки', 'тренировок') + ' всего</p></div>' +
-      '<div class="stack-s">' + list + '</div>' +
-      (rows.length ? '<div class="sect"><span class="eyebrow">Прогресс по упражнениям</span><div class="card list">' + rows.slice(0, 20).join('') + '</div></div>' : '') +
+      '<p class="sub">' + S.history.length + ' ' + DS.plural(S.history.length, 'тренировка', 'тренировки', 'тренировок') +
+      (totalVol ? ' · ' + numRu(totalVol) + ' кг тоннажа' : '') + '</p></div>' +
+      '<div class="sect"><span class="eyebrow">Дневник</span>' + list +
+      (S.history.length > shown.length
+        ? '<div class="actions tight"><button class="btn ghost" data-act="histMore">Показать ещё</button></div>' : '') +
+      '</div>' +
+      (rows.length ? '<div class="sect"><div class="sect-h"><span class="eyebrow">Архив по упражнениям</span>' +
+        '<span class="mini">все подходы по датам</span></div>' +
+        '<div class="card list">' + rows.slice(0, 30).join('') + '</div></div>' : '') +
+      '</div>';
+  }
+
+  function screenExercise() {
+    var ex = DS.byId(UI.exId);
+    if (!ex) return screenHistory();
+    var sessions = S.history.filter(function (h) { return !!exEntry(h, ex.id); });
+    if (!sessions.length) return screenHistory();
+
+    var chrono = sessions.slice().reverse();
+    var prevMax = {}, running = null, totalSets = 0, totalVol = 0, bestW = 0, series = [];
+    chrono.forEach(function (h) {
+      var st = entryStats(exEntry(h, ex.id));
+      prevMax[h.id] = running;
+      running = st.bestW;
+      if (st.bestW > 0) {
+        series.push(st.bestW);
+        if (st.bestW > bestW) bestW = st.bestW;
+      }
+      totalSets += st.sets;
+      totalVol += st.volume;
+    });
+
+    var list = monthGroups(sessions).map(function (g) {
+      return '<div class="mhead"><b>' + monthTitle(g.ts) + '</b><span>' +
+        g.items.length + ' ' + DS.plural(g.items.length, 'тренировка', 'тренировки', 'тренировок') + '</span></div>' +
+        g.items.map(function (h) {
+          var e = exEntry(h, ex.id), st = entryStats(e);
+          var d = st.bestW > 0 && prevMax[h.id] ? DS.roundW(st.bestW - prevMax[h.id]) : 0;
+          var chips = (e.sets || []).map(function (s) {
+            var isBest = st.best && s.w === st.best.w && s.r === st.best.r;
+            return '<span class="setchip' + (isBest ? ' best' : '') + '">' + setLabel(s) + '</span>';
+          }).join('');
+          return '<button class="aitem" data-act="detailOpen" data-id="' + h.id + '">' +
+            '<span class="aitem-h"><b>' + fullDate(h.ts) + '</b><span>' + DS.esc(h.dayName) + '</span></span>' +
+            '<span class="aitem-s">' + chips + '</span>' +
+            '<span class="aitem-f"><span>' + st.sets + ' ' + DS.plural(st.sets, 'подход', 'подхода', 'подходов') +
+            (st.volume ? ' · ' + numRu(st.volume) + ' кг' : '') + '</span>' +
+            (d > 0 ? '<span class="up">+' + DS.kg(d) + '</span>' : d < 0 ? '<span class="down">−' + DS.kg(-d) + '</span>' : '') +
+            '</span></button>';
+        }).join('');
+    }).join('');
+
+    return hdr({ back: UI.exBack === 'detail' ? 'Тренировка' : 'История' }) +
+      '<div class="wrap"><div class="head-block"><h1>' + DS.esc(ex.n) + '</h1>' +
+      '<p class="sub">' + D.GROUP[ex.g] + ' · ' + D.EQUIP[ex.eq] + '</p></div>' +
+      '<div class="stats3">' +
+      '<div><b>' + sessions.length + '</b><span>Тренировок</span></div>' +
+      '<div><b>' + (bestW > 0 ? DS.kg(bestW).replace(' кг', '') : '—') + '</b><span>Лучший, кг</span></div>' +
+      '<div><b>' + (totalVol ? numRu(totalVol) : '—') + '</b><span>Тоннаж, кг</span></div>' +
+      '</div>' +
+      '<p class="sub">' + totalSets + ' ' + DS.plural(totalSets, 'подход', 'подхода', 'подходов') +
+      ' · впервые ' + dayMonth(chrono[0].ts) + ' · последний раз ' + dayMonth(sessions[0].ts) + '</p>' +
+      (series.length > 1 ? '<div class="sect"><div class="sect-h"><span class="eyebrow">Вес по тренировкам</span>' +
+        '<span class="mini">максимум за день</span></div><div class="card">' + spark(series, 480, 72, 'wide') + '</div></div>' : '') +
+      '<div class="sect"><span class="eyebrow">Все тренировки</span>' + list + '</div>' +
       '</div>';
   }
 
@@ -673,8 +817,10 @@
           '<div class="inp"><span class="ro-v">' + s.r + ' повт</span></div>' +
           '<span class="chk-space"></span></div>';
       }).join('');
-      return '<section class="ex-block"><div class="ex-head"><div><h3>' + DS.esc(ex ? ex.n : e.exId) + '</h3>' +
-        '<div class="meta">' + e.sets.length + ' ' + DS.plural(e.sets.length, 'подход', 'подхода', 'подходов') + '</div></div></div>' + sets + '</section>';
+      return '<section class="ex-block"><button class="ex-head" data-act="exOpen" data-id="' + e.exId + '">' +
+        '<span class="ex-head-t"><span class="ex-name">' + DS.esc(ex ? ex.n : e.exId) + '</span>' +
+        '<span class="meta">' + e.sets.length + ' ' + DS.plural(e.sets.length, 'подход', 'подхода', 'подходов') + '</span></span>' +
+        IC.chev + '</button>' + sets + '</section>';
     }).join('');
 
     return hdr({ back: 'История', title: h.dayName }) +
@@ -747,6 +893,7 @@
       case 'finish': html = screenFinish(); break;
       case 'history': html = screenHistory(); break;
       case 'detail': html = screenDetail(); break;
+      case 'exercise': html = screenExercise(); break;
       case 'settings': html = screenSettings(); break;
       case 'pick': html = screenPick(true); break;
       case 'weights': html = screenWeights(true); break;
@@ -876,6 +1023,7 @@
           UI.route.step = Math.max(1, UI.route.step - 1);
           render();
         } else if (UI.route.name === 'detail') DS.go('history');
+        else if (UI.route.name === 'exercise') DS.go(UI.exBack || 'history');
         else DS.go('program');
         break;
 
@@ -1106,6 +1254,17 @@
       case 'detailOpen':
         UI.detailId = t.dataset.id;
         DS.go('detail');
+        break;
+
+      case 'exOpen':
+        UI.exId = t.dataset.id;
+        UI.exBack = UI.route.name === 'detail' ? 'detail' : 'history';
+        DS.go('exercise');
+        break;
+
+      case 'histMore':
+        UI.histLimit = (UI.histLimit || 60) + 60;
+        render();
         break;
 
       case 'export':

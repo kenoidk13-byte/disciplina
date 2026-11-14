@@ -60,6 +60,7 @@ fr.onload = function () {
   DS.go('program');
   UI.detailId = DS.S.history[0].id;
   DS.go('detail'); check('detail');
+  d.querySelector('.ex-head[data-act="exOpen"]').click(); check('exercise'); tapAudit('exercise');
 
   var fails = log.filter(function (l) { return l.indexOf('OVERFLOW') === 0 || l.indexOf('SMALL') === 0; }).length;
   document.title = fails ? 'FAIL' : 'PASS';

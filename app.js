@@ -15,6 +15,9 @@
     summary: null,
     rest: null,
     detailId: null,
+    exId: null,
+    exBack: 'history',
+    histLimit: 60,
     tick: null
   };
 
@@ -109,7 +112,10 @@
   }
 
   function dateLong(ts) {
-    return new Date(ts).toLocaleDateString('ru-RU', { weekday: 'short', day: 'numeric', month: 'long' });
+    var d = new Date(ts);
+    var o = { weekday: 'short', day: 'numeric', month: 'long' };
+    if (d.getFullYear() !== new Date().getFullYear()) o.year = 'numeric';
+    return d.toLocaleDateString('ru-RU', o).replace(' г.', '');
   }
 
   function sameWeek(ts) {
@@ -601,7 +607,7 @@
       volume: Math.round(volume),
       entries: entries
     });
-    if (S.history.length > 200) S.history.length = 200;
+    if (S.history.length > 500) S.history.length = 500;
 
     S.active = null;
     save();
@@ -660,15 +666,26 @@
     }
 
     var d = new Date();
-    [3, 5, 8].forEach(function (back, i) {
-      S.history.push({
-        id: 'hd' + i, ts: d.getTime() - back * 86400000, dayKey: 'ABC'[i % 3], dayName: 'Демо',
-        duration: 3300, volume: 5400 - i * 400,
-        entries: [
-          { exId: 'bench', sets: [{ w: 62.5 - i * 2.5, r: 10 }, { w: 62.5 - i * 2.5, r: 9 }] },
-          { exId: 'squat', sets: [{ w: 80 - i * 2.5, r: 8 }, { w: 80 - i * 2.5, r: 8 }] }
-        ]
-      });
+    var demoDays = ['Всё тело A', 'Тяга и плечи', 'Всё тело C'];
+    var backs = [3, 6, 9, 14, 21, 30, 44, 60];
+    var acc = ['rdl', 'ohp', 'bb_curl', 'leg_press', 'db_row', 'pushdown', 'lat_raise', 'plank'];
+    S.history = backs.map(function (back, i) {
+      var benchW = Math.max(40, 62.5 - i * 2.5);
+      var squatW = Math.max(50, 80 - i * 2.5);
+      var entries = [
+        { exId: 'bench', sets: [{ w: benchW, r: 10 }, { w: benchW, r: 9 }, { w: benchW, r: 8 }] },
+        { exId: 'squat', sets: [{ w: squatW, r: 8 }, { w: squatW, r: 8 }, { w: squatW, r: 7 }] }
+      ];
+      var accId = acc[i % acc.length], accEx = byId(accId);
+      var accW = accEx.pat === 'core' ? 0 : Math.max(0, (D.DEFAULT_W[accEx.eq] || 0) + (6 - i) * 2);
+      entries.push({ exId: accId, sets: [{ w: accW, r: 12 }, { w: accW, r: 10 }] });
+      var vol = 0;
+      entries.forEach(function (e) { e.sets.forEach(function (s) { vol += (s.w || 0) * s.r; }); });
+      return {
+        id: 'hd' + i, ts: d.getTime() - back * 86400000,
+        dayKey: 'ABC'[i % 3], dayName: demoDays[i % 3],
+        duration: 3000 + (i % 4) * 300, volume: vol, entries: entries
+      };
     });
     save();
   }

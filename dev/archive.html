@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>archive</title><link rel="stylesheet" href="../app.css"></head>
+<body>
+<div id="app" class="app"></div>
+<pre id="out" style="padding:16px;font-size:13px;white-space:pre-wrap;color:#9f9"></pre>
+<script src="../data.js"></script>
+<script src="../app.js"></script>
+<script src="../ui.js"></script>
+<script>
+(function () {
+  var log = [];
+  function ck(name, cond, extra) { log.push((cond ? 'OK   ' : 'FAIL ') + name + (extra !== undefined ? ' :: ' + extra : '')); }
+  function q(s) { return document.querySelector(s); }
+  function qa(s) { return document.querySelectorAll(s); }
+
+  var DS = window.DS, S = DS.S, UI = DS.UI;
+
+  ck('демо: 8 тренировок', S.history.length === 8, S.history.length);
+
+  DS.go('history');
+  ck('история: экран', UI.route.name === 'history', UI.route.name);
+  ck('история: месяцы', qa('.mhead').length >= 2, qa('.mhead').length);
+  ck('история: записи', qa('.hitem').length === 8, qa('.hitem').length);
+  ck('история: упражнения в строке', !!q('.hitem .ex') && q('.hitem .ex').textContent.length > 0, q('.hitem .ex') && q('.hitem .ex').textContent);
+  ck('история: стрелка у упражнений', qa('.prow .chev').length > 0, qa('.prow .chev').length);
+  ck('история: архив упражнений', qa('.prow').length > 0, qa('.prow').length);
+  ck('история: кнопки ещё нет', !q('[data-act="histMore"]'));
+
+  q('.hitem').click();
+  ck('детали: открылись', UI.route.name === 'detail', UI.route.name);
+  ck('детали: ссылка на упражнение', qa('.ex-head[data-act="exOpen"]').length > 0, qa('.ex-head[data-act="exOpen"]').length);
+
+  q('.ex-head[data-act="exOpen"]').click();
+  ck('архив: открылся', UI.route.name === 'exercise', UI.route.name);
+  ck('архив: три показателя', qa('.stats3 div').length === 3, qa('.stats3 div').length);
+  ck('архив: записи', qa('.aitem').length >= 3, qa('.aitem').length);
+  ck('архив: подходы', qa('.setchip').length > 0, qa('.setchip').length);
+  ck('архив: лучший подход', qa('.setchip.best').length > 0, qa('.setchip.best').length);
+  ck('архив: график', !!q('.spark.wide'));
+  ck('архив: назад в тренировку', /Тренировка/.test((q('[data-act="back"]') || {}).textContent || ''));
+
+  q('[data-act="back"]').click();
+  ck('архив: вернулся в детали', UI.route.name === 'detail', UI.route.name);
+  q('[data-act="back"]').click();
+  ck('детали: вернулся в историю', UI.route.name === 'history', UI.route.name);
+
+  q('.prow').click();
+  ck('архив из истории', UI.route.name === 'exercise', UI.route.name);
+  ck('архив: назад в историю', /История/.test((q('[data-act="back"]') || {}).textContent || ''));
+  q('[data-act="back"]').click();
+  ck('архив: вернулся в историю', UI.route.name === 'history', UI.route.name);
+
+  var months = [].map.call(qa('.mhead b'), function (el) { return el.textContent; });
+  ck('архив: месяцы по-русски', months.join('').indexOf('2026') !== -1, months.join(' | '));
+
+  /* длинный дневник: порция и кнопка «Показать ещё» */
+  var base = S.history.slice();
+  for (var i = 0; i < 62; i++) {
+    var c = JSON.parse(JSON.stringify(base[i % base.length]));
+    c.id = 'hx' + i;
+    c.ts = Date.now() - (90 + i) * 86400000;
+    S.history.push(c);
+  }
+  DS.go('history');
+  ck('дневник: первая порция 60', qa('.hitem').length === 60, qa('.hitem').length);
+  ck('дневник: кнопка ещё', !!q('[data-act="histMore"]'));
+  q('[data-act="histMore"]').click();
+  ck('дневник: показать ещё', qa('.hitem').length > 60, qa('.hitem').length);
+
+  var fails = log.filter(function (l) { return l.indexOf('FAIL') === 0; }).length;
+  document.title = fails ? 'FAIL ' + fails : 'PASS';
+  document.getElementById('out').textContent = 'RESULT ' + document.title + '\n\n' + log.join('\n');
+})();
+</script>
+</body>
+</html>
