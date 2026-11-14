@@ -18,6 +18,7 @@
     exId: null,
     exBack: 'history',
     histLimit: 60,
+    pickQuery: '',
     tick: null
   };
 

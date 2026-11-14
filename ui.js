@@ -22,6 +22,7 @@
     trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M10 4h4M6 7l1 13h10l1-13"/></svg>',
     plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
     chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"/></svg>',
+    search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M20 20l-3.8-3.8"/></svg>',
     down: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v12M6 11l6 6 6-6M4 20h16"/></svg>',
     up: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20V8M6 13l6-6 6 6M4 4h16"/></svg>'
   };
@@ -95,13 +96,41 @@
       '</div>';
   }
 
-  function filteredExercises() {
-    var f = D.FILTERS.filter(function (x) { return x.k === UI.filter; })[0] || D.FILTERS[0];
-    return D.EXERCISES.filter(function (e) {
-      if (!DS.isAvailable(e)) return false;
-      if (f.g && f.g.indexOf(e.g) === -1) return false;
-      return true;
+  function normQ(s) {
+    return String(s || '').toLowerCase().replace(/ё/g, 'е').trim();
+  }
+
+  function curFilter() {
+    return D.FILTERS.filter(function (x) { return x.k === UI.filter; })[0] || D.FILTERS[0];
+  }
+
+  function inFilter(ex, f) {
+    return !f.g || f.g.indexOf(ex.g) !== -1;
+  }
+
+  function matchesQuery(ex) {
+    var q = normQ(UI.pickQuery);
+    if (!q) return true;
+    var parts = [ex.n, D.GROUP[ex.g], D.EQUIP[ex.eq]];
+    D.FILTERS.forEach(function (f) {
+      if (f.g && f.g.indexOf(ex.g) !== -1) parts.push(f.t);
     });
+    var hay = normQ(parts.join(' '));
+    return q.split(/\s+/).every(function (part) { return hay.indexOf(part) !== -1; });
+  }
+
+  function filteredExercises() {
+    var f = curFilter();
+    return D.EXERCISES.filter(function (e) {
+      return DS.isAvailable(e) && inFilter(e, f) && matchesQuery(e);
+    });
+  }
+
+  function hiddenByEquip() {
+    var f = curFilter();
+    return D.EXERCISES.filter(function (e) {
+      return !DS.isAvailable(e) && inFilter(e, f) && matchesQuery(e);
+    }).length;
   }
 
   function pickRow(ex) {
@@ -110,6 +139,25 @@
       '<span class="box">' + (on ? IC.check : '') + '</span>' +
       '<span class="pick-t"><b>' + DS.esc(ex.n) + '</b><i>' + D.GROUP[ex.g] + ' · ' + D.EQUIP[ex.eq] + '</i></span>' +
       '</button>';
+  }
+
+  function pickList() {
+    var list = filteredExercises();
+    if (list.length) return list.map(pickRow).join('');
+    var hidden = hiddenByEquip();
+    var msg = hidden
+      ? 'Скрыто фильтром инвентаря: ' + hidden + '. Включи нужный чип выше.'
+      : 'Попробуй другое название или другую группу.';
+    return '<div class="empty"><b>Ничего не найдено</b><p>' + msg + '</p></div>';
+  }
+
+  function searchField() {
+    var q = UI.pickQuery || '';
+    return '<div class="pick-search">' + IC.search +
+      '<input id="exq" type="search" inputmode="search" autocomplete="off" spellcheck="false" ' +
+      'placeholder="Найти упражнение" aria-label="Найти упражнение" value="' + DS.esc(q) + '">' +
+      '<button class="pick-clear" data-act="pickClear" aria-label="Очистить поиск"' +
+      (q ? '' : ' style="display:none"') + '>' + IC.x + '</button></div>';
   }
 
   function gaps() {
@@ -124,7 +172,6 @@
   }
 
   function screenPick(edit) {
-    var list = filteredExercises();
     var n = S.selected.length;
     var gap = gaps();
     var body =
@@ -135,8 +182,8 @@
       '<h1>' + (edit ? 'Твои упражнения' : 'Что тебе доступно?') + '</h1>' +
       '<p class="sub">Отметь упражнения, которые умеешь делать и хочешь видеть в программе. Инвентарь можно отфильтровать.</p>' +
       '</div>' +
-      '<div class="pick-filters">' + chipsEquip() + chipsFilter() + '</div>' +
-      (list.length ? list.map(pickRow).join('') : '<div class="empty"><b>Пусто</b><p>Для выбранного инвентаря и группы ничего нет.</p></div>') +
+      '<div class="pick-filters">' + searchField() + chipsEquip() + chipsFilter() + '</div>' +
+      '<div id="picklist">' + pickList() + '</div>' +
       '</div>' +
       '<div class="foot">' +
       '<div class="row"><span>Выбрано <b>' + n + '</b> ' + DS.plural(n, 'упражнение', 'упражнения', 'упражнений') + '</span>' +
@@ -874,7 +921,8 @@
     var ae = document.activeElement;
     var fk = null;
     if (ae && ae.tagName === 'INPUT') {
-      fk = { si: ae.dataset.si, ri: ae.dataset.ri, k: ae.dataset.k, wid: ae.dataset.wid, sel: ae.selectionStart };
+      if (ae.id === 'exq') fk = { exq: true, sel: ae.selectionStart };
+      else fk = { si: ae.dataset.si, ri: ae.dataset.ri, k: ae.dataset.k, wid: ae.dataset.wid, sel: ae.selectionStart };
     }
 
     if (!S.onboarded && UI.route.name !== 'onboarding') UI.route = { name: 'onboarding', step: 1 };
@@ -911,10 +959,11 @@
       (r.name !== 'session' ? sheetHtml() : '');
 
     if (fk) {
-      var q = fk.wid
-        ? '[data-wid="' + fk.wid + '"][data-k="' + fk.k + '"]'
-        : '[data-si="' + fk.si + '"][data-ri="' + fk.ri + '"][data-k="' + fk.k + '"]';
-      var nel = app.querySelector(q);
+      var nel = fk.exq
+        ? document.getElementById('exq')
+        : app.querySelector(fk.wid
+          ? '[data-wid="' + fk.wid + '"][data-k="' + fk.k + '"]'
+          : '[data-si="' + fk.si + '"][data-ri="' + fk.ri + '"][data-k="' + fk.k + '"]');
       if (nel) {
         nel.focus();
         try { nel.setSelectionRange(fk.sel, fk.sel); } catch (err) {}
@@ -1230,11 +1279,17 @@
         }
         break;
 
-      case 'openPick': DS.go('pick'); break;
+      case 'openPick': UI.pickQuery = ''; DS.go('pick'); break;
+
+      case 'pickClear':
+        UI.pickQuery = '';
+        render();
+        break;
       case 'openWeights': DS.go('weights'); break;
       case 'openGoal': DS.go('goal'); break;
 
       case 'pickDone':
+        UI.pickQuery = '';
         DS.pruneProgram();
         if (!S.program && S.selected.length >= 5) DS.generateProgram();
         DS.go('settings');
@@ -1288,6 +1343,15 @@
   app.addEventListener('input', function (ev) {
     var el = ev.target;
     if (!el || el.tagName !== 'INPUT') return;
+
+    if (el.id === 'exq') {
+      UI.pickQuery = el.value;
+      var box = document.getElementById('picklist');
+      if (box) box.innerHTML = pickList();
+      var clr = app.querySelector('.pick-search .pick-clear');
+      if (clr) clr.style.display = el.value ? '' : 'none';
+      return;
+    }
 
     if (el.dataset.wid) {
       var id = el.dataset.wid, k = el.dataset.k;

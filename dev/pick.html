@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>pick search</title><link rel="stylesheet" href="../app.css"></head>
+<body>
+<div id="app" class="app"></div>
+<pre id="out" style="padding:16px;font-size:13px;white-space:pre-wrap;color:#9f9"></pre>
+<script src="../data.js"></script>
+<script src="../app.js"></script>
+<script src="../ui.js"></script>
+<script>
+(function () {
+  var log = [];
+  function ck(name, cond, extra) { log.push((cond ? 'OK   ' : 'FAIL ') + name + (extra !== undefined ? ' :: ' + extra : '')); }
+  function qa(s) { return document.querySelectorAll(s); }
+  function q(s) { return document.querySelector(s); }
+  function type(v) {
+    var el = q('#exq');
+    el.focus();
+    el.value = v;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }
+
+  var DS = window.DS, D = window.D, S = DS.S, UI = DS.UI;
+  var base = qa('.pick').length;
+
+  ck('поиск: поле есть', !!q('#exq'));
+  ck('поиск: список отрисован', base > 40, base);
+
+  type('гипер');
+  ck('поиск: гиперэкстензия найдена', qa('.pick').length === 1 && /Гиперэкстензия/.test(q('.pick').textContent), qa('.pick').length);
+  ck('поиск: фокус не потерян', document.activeElement && document.activeElement.id === 'exq');
+  ck('поиск: кнопка очистки видна', q('.pick-clear') && q('.pick-clear').style.display !== 'none');
+
+  q('.pick-clear').click();
+  ck('поиск: очистка вернула список', qa('.pick').length === base, qa('.pick').length);
+
+  type('спина');
+  var backCount = D.EXERCISES.filter(function (e) {
+    return DS.isAvailable(e) && ['back', 'traps'].indexOf(e.g) !== -1;
+  }).length;
+  ck('поиск: по группе', qa('.pick').length === backCount, qa('.pick').length + ' / ' + backCount);
+  q('.pick-clear').click();
+
+  var bw = q('.chip[data-v="bodyweight"]');
+  bw.click();
+  ck('инвентарь: свой вес выключен', S.equipment.indexOf('bodyweight') === -1);
+  type('гипер');
+  ck('поиск: скрыто инвентарём', qa('.pick').length === 0, qa('.pick').length);
+  ck('поиск: подсказка про инвентарь', /Скрыто фильтром инвентаря/.test((q('.empty') || {}).textContent || ''), (q('.empty') || {}).textContent);
+
+  q('.chip[data-v="bodyweight"]').click();
+  ck('инвентарь: свой вес включён', S.equipment.indexOf('bodyweight') !== -1);
+  type('гипер');
+  ck('поиск: снова нашлась', qa('.pick').length === 1, qa('.pick').length);
+  ck('поиск: запрос сохранился после рендера', q('#exq').value === 'гипер', q('#exq').value);
+
+  var had = S.selected.indexOf('hyperext') !== -1;
+  q('.pick').click();
+  ck('поиск: выбор из результата', (S.selected.indexOf('hyperext') !== -1) !== had, S.selected.indexOf('hyperext'));
+  ck('поиск: запрос жив после выбора', q('#exq').value === 'гипер', q('#exq').value);
+  q('.pick').click();
+  ck('поиск: повторный выбор', (S.selected.indexOf('hyperext') !== -1) === had, S.selected.indexOf('hyperext'));
+
+  var fails = log.filter(function (l) { return l.indexOf('FAIL') === 0; }).length;
+  document.title = fails ? 'FAIL ' + fails : 'PASS';
+  document.getElementById('out').textContent = 'RESULT ' + document.title + '\n\n' + log.join('\n');
+})();
+</script>
+</body>
+</html>
