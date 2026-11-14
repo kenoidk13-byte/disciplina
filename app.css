@@ -64,6 +64,8 @@ b,strong{font-weight:600}
 .hdr-in{height:56px;display:flex;align-items:center;gap:10px}
 .mark{display:flex;align-items:center;flex:1;min-width:0}
 .mark-t{font-size:16px;font-weight:700;letter-spacing:-.02em;line-height:1;color:var(--txt);white-space:nowrap}
+.ver{font-size:10px;font-weight:600;letter-spacing:.1em;text-transform:uppercase;color:var(--mut2);
+  white-space:nowrap;flex:0 0 auto;font-variant-numeric:tabular-nums}
 .hdr-t{font-size:14px;font-weight:600;color:var(--mut);flex:1}
 
 .iconbtn{width:44px;height:44px;display:grid;place-items:center;border-radius:12px;color:var(--mut);

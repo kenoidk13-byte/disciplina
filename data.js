@@ -50,8 +50,10 @@ var D = (function () {
     ['pushup', 'Отжимания от пола', 'chest', 'hpush', 'bodyweight', 1],
     ['dip_chest', 'Отжимания на брусьях', 'chest', 'hpush', 'bodyweight', 2],
     ['db_fly', 'Разведение гантелей лёжа', 'chest', 'chest_iso', 'dumbbell', 1],
+    ['db_fly_incline', 'Разведение гантелей на наклонной', 'chest', 'chest_iso', 'dumbbell', 1],
     ['cable_fly', 'Сведение в кроссовере', 'chest', 'chest_iso', 'cable', 1],
     ['pec_deck', 'Бабочка', 'chest', 'chest_iso', 'machine', 1],
+    ['bench_decline', 'Жим штанги на наклонной вниз', 'chest', 'hpush', 'barbell', 2],
 
     ['deadlift', 'Становая тяга', 'back', 'hinge', 'barbell', 2],
     ['rdl', 'Румынская тяга', 'back', 'hinge', 'barbell', 1],
@@ -62,10 +64,15 @@ var D = (function () {
     ['gravitron', 'Подтягивания в гравитроне', 'back', 'vpull', 'machine', 1],
     ['seated_row', 'Тяга горизонтального блока', 'back', 'hpull', 'cable', 1],
     ['tbar_row', 'Тяга Т-грифа', 'back', 'hpull', 'barbell', 2],
+    ['bb_row_rev', 'Тяга штанги обратным хватом', 'back', 'hpull', 'barbell', 2],
+    ['db_row_sup', 'Тяга гантелей лёжа на наклонной', 'back', 'hpull', 'dumbbell', 1],
+    ['pullup_rev', 'Подтягивания обратным хватом', 'back', 'vpull', 'bodyweight', 2],
     ['shrug_bb', 'Шраги со штангой', 'traps', 'traps', 'barbell', 1],
     ['shrug_db', 'Шраги с гантелями', 'traps', 'traps', 'dumbbell', 1],
+    ['shrug_machine', 'Шраги в тренажёре', 'traps', 'traps', 'machine', 1],
     ['hyperext', 'Гиперэкстензия', 'back', 'hinge', 'bodyweight', 1],
     ['pullover', 'Пуловер на блоке', 'back', 'lat_iso', 'cable', 1],
+    ['pullover_db', 'Пуловер с гантелью', 'back', 'lat_iso', 'dumbbell', 1],
 
     ['ohp', 'Жим штанги стоя', 'shoulders', 'vpush', 'barbell', 2],
     ['db_ohp', 'Жим гантелей сидя', 'shoulders', 'vpush', 'dumbbell', 1],
@@ -74,12 +81,19 @@ var D = (function () {
     ['cable_lat', 'Махи в кроссовере', 'shoulders', 'delt_iso', 'cable', 1],
     ['rear_fly', 'Разведения в наклоне', 'shoulders', 'rear_delt', 'dumbbell', 1],
     ['reverse_pec', 'Обратная бабочка', 'shoulders', 'rear_delt', 'machine', 1],
+    ['rear_cable', 'Разведения на заднюю дельту в кроссовере', 'shoulders', 'rear_delt', 'cable', 1],
+    ['face_pull', 'Тяга к лицу', 'shoulders', 'rear_delt', 'cable', 1],
+    ['arnold', 'Жим Арнольда', 'shoulders', 'vpush', 'dumbbell', 2],
+    ['front_raise', 'Подъём гантелей перед собой', 'shoulders', 'delt_iso', 'dumbbell', 1],
 
     ['bb_curl', 'Подъём штанги на бицепс', 'biceps', 'biceps', 'barbell', 1],
     ['db_curl', 'Подъём гантелей на бицепс', 'biceps', 'biceps', 'dumbbell', 1],
     ['hammer', 'Молотки', 'biceps', 'biceps', 'dumbbell', 1],
     ['scott', 'Подъём на скамье Скотта', 'biceps', 'biceps', 'machine', 2],
     ['cable_curl', 'Сгибания в кроссовере', 'biceps', 'biceps', 'cable', 1],
+    ['bb_curl_rev', 'Подъём штанги обратным хватом', 'biceps', 'biceps', 'barbell', 2],
+    ['incline_curl', 'Сгибания на наклонной скамье', 'biceps', 'biceps', 'dumbbell', 1],
+    ['conc_curl', 'Концентрированные сгибания', 'biceps', 'biceps', 'dumbbell', 1],
 
     ['cg_bench', 'Жим узким хватом', 'triceps', 'triceps', 'barbell', 2],
     ['french', 'Французский жим', 'triceps', 'triceps', 'barbell', 2],
@@ -87,6 +101,8 @@ var D = (function () {
     ['oh_ext', 'Разгибания гантели из-за головы', 'triceps', 'triceps', 'dumbbell', 1],
     ['dip_tri', 'Отжимания на брусьях (трицепс)', 'triceps', 'triceps', 'bodyweight', 2],
     ['diamond_pushup', 'Бриллиантовые отжимания', 'triceps', 'triceps', 'bodyweight', 1],
+    ['rope_pushdown', 'Разгибания на блоке верёвкой', 'triceps', 'triceps', 'cable', 1],
+    ['kickback', 'Разгибания гантели в наклоне', 'triceps', 'triceps', 'dumbbell', 1],
 
     ['squat', 'Приседания со штангой', 'quads', 'squat', 'barbell', 1],
     ['smith_squat', 'Приседания в Смите', 'quads', 'squat', 'smith', 1],
@@ -97,17 +113,24 @@ var D = (function () {
     ['bulgarian', 'Болгарские выпады', 'quads', 'lunge', 'dumbbell', 2],
     ['step_up', 'Зашагивания на платформу', 'quads', 'lunge', 'dumbbell', 2],
     ['front_squat', 'Фронтальные приседания', 'quads', 'squat', 'barbell', 3],
+    ['hack_squat', 'Гакк-приседания', 'quads', 'squat', 'machine', 1],
+    ['rev_lunge', 'Обратные выпады', 'quads', 'lunge', 'dumbbell', 1],
+    ['bb_lunge', 'Выпады со штангой', 'quads', 'lunge', 'barbell', 2],
 
     ['db_rdl', 'Румынская тяга с гантелями', 'ham', 'hinge', 'dumbbell', 1],
     ['leg_curl', 'Сгибания ног лёжа', 'ham', 'ham_iso', 'machine', 1],
     ['leg_curl_sit', 'Сгибания ног сидя', 'ham', 'ham_iso', 'machine', 1],
+    ['goodmorning', 'Наклоны со штангой', 'ham', 'hinge', 'barbell', 2],
     ['hip_bridge', 'Ягодичный мост со штангой', 'glutes', 'hinge', 'barbell', 1],
     ['hip_thrust', 'Хип-траст', 'glutes', 'hinge', 'barbell', 1],
+    ['hip_thrust_m', 'Хип-траст в тренажёре', 'glutes', 'hinge', 'machine', 1],
+    ['sumo_dl', 'Становая тяга сумо', 'glutes', 'hinge', 'barbell', 2],
     ['cable_kick', 'Отведение ноги в кроссовере', 'glutes', 'glute_iso', 'cable', 1],
     ['hip_abduct', 'Разведение ног в тренажёре', 'glutes', 'glute_iso', 'machine', 1],
 
     ['calf_stand', 'Подъём на носки стоя', 'calves', 'calves', 'machine', 1],
     ['calf_sit', 'Подъём на носки сидя', 'calves', 'calves', 'machine', 1],
+    ['calf_press', 'Подъём на носки в жиме ногами', 'calves', 'calves', 'machine', 1],
     ['calf_bb', 'Подъём на носки со штангой', 'calves', 'calves', 'barbell', 2],
 
     ['crunch_cable', 'Скручивания на блоке', 'abs', 'core', 'cable', 1],
@@ -117,6 +140,8 @@ var D = (function () {
     ['bicycle', 'Велосипед', 'abs', 'core', 'bodyweight', 1],
     ['crunch', 'Скручивания', 'abs', 'core', 'bodyweight', 1],
     ['knee_raise', 'Подъём коленей в висе', 'abs', 'core', 'bodyweight', 1],
+    ['side_plank', 'Боковая планка', 'abs', 'core', 'bodyweight', 1],
+    ['russian_twist', 'Русский твист', 'abs', 'core', 'bodyweight', 1],
 
     ['kb_swing', 'Кетлбелл-свинг', 'ham', 'hinge', 'kettlebell', 2],
     ['farmer', 'Фермерская прогулка', 'back', 'core', 'dumbbell', 1],
@@ -124,7 +149,9 @@ var D = (function () {
     ['sl_bridge', 'Ягодичный мостик на одной ноге', 'glutes', 'hinge', 'bodyweight', 1],
     ['band_row', 'Тяга резинки', 'back', 'hpull', 'bands', 1],
     ['band_press', 'Жим резинки стоя', 'shoulders', 'vpush', 'bands', 1],
-    ['band_curl', 'Сгибания с резинкой', 'biceps', 'biceps', 'bands', 1]
+    ['band_curl', 'Сгибания с резинкой', 'biceps', 'biceps', 'bands', 1],
+    ['band_pull_apart', 'Разведения резинки', 'shoulders', 'rear_delt', 'bands', 1],
+    ['band_squat', 'Приседания с резинкой', 'quads', 'squat', 'bands', 1]
   ];
 
   var EXERCISES = RAW.map(function (r) {

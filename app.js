@@ -634,7 +634,8 @@
   function seedDemo(mode) {
     var ids = ['bench', 'db_bench', 'db_incline', 'pushup', 'bb_row', 'db_row', 'pulldown', 'pullup', 'seated_row',
       'ohp', 'db_ohp', 'lat_raise', 'bb_curl', 'hammer', 'pushdown', 'cg_bench', 'squat', 'leg_press', 'lunge',
-      'leg_ext', 'rdl', 'leg_curl', 'hip_thrust', 'calf_stand', 'plank', 'crunch_cable'];
+      'leg_ext', 'rdl', 'leg_curl', 'hip_thrust', 'calf_stand', 'plank', 'crunch_cable',
+      'hack_squat', 'hyperext', 'bb_curl_rev'];
     S.selected = ids.slice();
     S.equipment = ['barbell', 'dumbbell', 'machine', 'cable', 'bodyweight'];
     ids.forEach(function (id) {

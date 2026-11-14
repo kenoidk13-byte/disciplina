@@ -63,7 +63,7 @@ fr.onload = function () {
 
   var fails = log.filter(function (l) { return l.indexOf('OVERFLOW') === 0 || l.indexOf('SMALL') === 0; }).length;
   document.title = fails ? 'FAIL' : 'PASS';
-  document.getElementById('out').textContent = 'RESULT ' + document.title + ' (390px)\n' + log.join('\n');
+  document.getElementById('out').textContent = 'RESULT ' + document.title + ' (' + W + 'px)\n' + log.join('\n');
 };
 </script>
 </body></html>

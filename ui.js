@@ -43,6 +43,7 @@
     return '<header class="hdr"><div class="pad hdr-in">' +
       (opts.back ? '<button class="back" data-act="back">' + IC.back + '<span>' + DS.esc(opts.back) + '</span></button>' : '') +
       (opts.mark ? '<div class="mark"><span class="mark-t">disciplina</span></div>' : '') +
+      (opts.mark ? '<span class="ver">alpha v.1</span>' : '') +
       (opts.title ? '<div class="hdr-t">' + DS.esc(opts.title) + '</div>' : '') +
       (opts.right || '') +
       '</div></header>';
