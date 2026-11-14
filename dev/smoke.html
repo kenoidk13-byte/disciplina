@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>smoke</title><link rel="stylesheet" href="../app.css"></head>
+<body>
+<div id="app" class="app"></div>
+<pre id="out" style="padding:16px;font-size:13px;white-space:pre-wrap;color:#9f9"></pre>
+<script src="../data.js"></script>
+<script src="../app.js"></script>
+<script src="../ui.js"></script>
+<script>
+(function () {
+  var log = [];
+  function ck(name, cond, extra) { log.push((cond ? 'OK   ' : 'FAIL ') + name + (extra !== undefined ? ' :: ' + extra : '')); }
+  function q(s) { return document.querySelector(s); }
+  function qa(s) { return document.querySelectorAll(s); }
+
+  ck('program: 3 дня', qa('.day').length === 3, qa('.day').length);
+  ck('program: навигация', !!q('.nav'));
+  ck('program: кнопка старт', !!q('[data-act="start"]'));
+
+  q('[data-act="start"]').click();
+  ck('session: упражнения', qa('.ex-block').length > 0, qa('.ex-block').length);
+  ck('session: подходы', qa('.set').length > 0, qa('.set').length);
+  ck('session: таймер', !!q('#elapsed'));
+
+  q('.set .chk').click();
+  ck('session: подход отмечен', qa('.set.done').length === 1, qa('.set.done').length);
+  ck('session: бар отдыха', !!q('.rest'), !!q('.rest'));
+
+  q('[data-act="finishSession"]').click();
+  ck('finish: экран итогов', !!q('.big-stat'), UIrouteName());
+
+  q('[data-act="nav"][data-to="program"]').click();
+  ck('finish: возврат к программе', qa('.day').length === 3, UIrouteName());
+
+  q('[data-act="nav"][data-to="history"]').click();
+  ck('history: записи', qa('.hitem').length >= 4, qa('.hitem').length);
+  q('.hitem').click();
+  ck('detail: открылся', !!q('.ex-block'), UIrouteName());
+  q('[data-act="back"]').click();
+
+  q('[data-act="nav"][data-to="settings"]').click();
+  ck('settings: сегменты', qa('.seg').length === 2, qa('.seg').length);
+  q('[data-act="openPick"]').click();
+  ck('pick: список', qa('.pick').length > 10, qa('.pick').length);
+  var first = q('.pick');
+  var wasOn = first.classList.contains('on');
+  first.click();
+  ck('pick: переключение', q('.pick').classList.contains('on') !== wasOn);
+  q('[data-act="pickDone"]').click();
+  ck('pick: вернулся в настройки', UIrouteName() === 'settings', UIrouteName());
+
+  q('[data-act="nav"][data-to="program"]').click();
+  q('[data-act="editDay"]').click();
+  ck('day: редактор', qa('[data-act="swapOpen"]').length > 0, qa('[data-act="swapOpen"]').length);
+  q('[data-act="swapOpen"]').click();
+  ck('sheet: альтернативы', qa('[data-act="pickSwap"]').length > 0, qa('[data-act="pickSwap"]').length);
+  var before = q('.wrow-n b').textContent;
+  q('[data-act="pickSwap"]').click();
+  ck('swap: упражнение заменено', q('.wrow-n b').textContent !== before, before + ' -> ' + q('.wrow-n b').textContent);
+
+  function UIrouteName() { return window.DS && window.DS.UI ? window.DS.UI.route.name : '?'; }
+
+  var fails = log.filter(function (l) { return l.indexOf('FAIL') === 0; }).length;
+  document.title = fails ? 'FAIL ' + fails : 'PASS';
+  document.getElementById('out').textContent = 'RESULT ' + document.title + '\n\n' + log.join('\n');
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>onb</title>
+<link rel="stylesheet" href="../app.css"></head><body>
+<div id="app" class="app"></div>
+<pre id="out" style="padding:14px;font-size:12px;white-space:pre-wrap;color:#9f9"></pre>
+<script src="../data.js"></script><script src="../app.js"></script><script src="../ui.js"></script>
+<script>
+(function () {
+  var log = [];
+  function ck(n, c, x) { log.push((c ? 'OK   ' : 'FAIL ') + n + (x !== undefined ? ' :: ' + x : '')); }
+  try {
+    var DS = window.DS, UI = DS.UI, S = DS.S;
+    try { localStorage.clear(); } catch (e) {}
+    UI.route = { name: 'onboarding', step: 1 };
+    DS.render();
+
+    ck('onboarding: экран выбора', !!document.querySelector('.steps'));
+    ck('onboarding: упражнения видны', document.querySelectorAll('.pick').length > 40, document.querySelectorAll('.pick').length);
+    ck('onboarding: кнопка заблокирована', document.querySelector('.foot .btn').disabled === true);
+
+    var want = ['bench', 'db_row', 'squat', 'rdl', 'ohp', 'lat_raise', 'plank', 'pushdown'];
+    want.forEach(function (id) { document.querySelector('.pick[data-id="' + id + '"]').click(); });
+    ck('onboarding: выбрано 8', S.selected.length === 8, S.selected.length);
+    ck('onboarding: кнопка активна', document.querySelector('.foot .btn').disabled === false);
+
+    document.querySelector('[data-act="obNext"]').click();
+    ck('шаг 2', UI.route.step === 2, UI.route.step);
+    ck('веса: поля есть', document.querySelectorAll('[data-wid]').length >= 16, document.querySelectorAll('[data-wid]').length);
+    var wi = document.querySelector('[data-wid="bench"][data-k="w"]');
+    wi.value = '55';
+    wi.dispatchEvent(new Event('input', { bubbles: true }));
+    ck('веса: значение сохранилось', S.weights.bench.w === 55, S.weights.bench.w);
+
+    document.querySelector('[data-act="obNext"]').click();
+    ck('шаг 3', UI.route.step === 3, UI.route.step);
+    document.querySelector('[data-act="goal"][data-v="cut"]').click();
+    document.querySelector('[data-act="days"][data-v="4"]').click();
+    ck('цель выбрана', S.goal === 'cut');
+    ck('4 дня', S.daysPerWeek === 4);
+
+    document.querySelector('[data-act="buildProgram"]').click();
+    ck('программа собрана', !!S.program && S.program.days.length === 4, S.program ? S.program.days.length : 0);
+    ck('экран программы', !!document.querySelector('.day'));
+    ck('цель в шапке', document.querySelector('.goalchip').textContent.indexOf('Сушка') !== -1, document.querySelector('.goalchip').textContent);
+
+    var it = S.program.days[0].items[0];
+    ck('схема под сушку', it.lo === 10 || it.lo === 12, it.lo + '-' + it.hi);
+    ck('день заполнен', S.program.days[0].items.length >= 4, S.program.days[0].items.length);
+
+    document.querySelector('[data-act="start"]').click();
+    ck('тренировка стартовала', !!S.active);
+    var w0 = document.querySelector('[data-si="0"][data-ri="0"][data-k="w"]');
+    w0.value = '57.5';
+    w0.dispatchEvent(new Event('input', { bubbles: true }));
+    var r0 = document.querySelector('[data-si="0"][data-ri="0"][data-k="r"]');
+    r0.value = '12';
+    r0.dispatchEvent(new Event('input', { bubbles: true }));
+    document.querySelectorAll('.chk')[0].click();
+    ck('подход сохранён', S.active.entries[0].rows[0].w === 57.5 && S.active.entries[0].rows[0].r === 12, S.active.entries[0].rows[0].w + '/' + S.active.entries[0].rows[0].r);
+
+    var exId = S.active.entries[0].exId;
+    document.querySelector('[data-act="finishSession"]').click();
+    ck('история пополнилась', S.history.length === 1, S.history.length);
+    ck('вес обновился', S.weights[exId] && S.weights[exId].w > 0, JSON.stringify(S.weights[exId]));
+
+    // повторное прохождение шага 3: сборка по группам
+    S.onboarded = false;
+    UI.route = { name: 'onboarding', step: 3 };
+    DS.render();
+    document.querySelector('[data-act="setMode"][data-v="custom"]').click();
+    ck('онбординг: конструктор дней', document.querySelectorAll('.bday').length === S.daysPerWeek, document.querySelectorAll('.bday').length);
+    ck('онбординг: дни предзаполнены', S.customDays.every(function (d) { return d.groups.length > 0; }), JSON.stringify(S.customDays));
+    document.querySelector('[data-act="buildProgram"]').click();
+    ck('онбординг: собрано по группам', S.program.mode === 'custom' && S.program.days.length === S.daysPerWeek, S.program.mode + '/' + S.program.days.length);
+    ck('онбординг: имена из групп', S.program.days[0].name === DS.customDayName(S.customDays[0].groups), S.program.days[0].name);
+
+    var fails = log.filter(function (l) { return l.indexOf('FAIL') === 0; }).length;
+    document.title = fails ? 'FAIL' : 'PASS';
+    document.getElementById('out').textContent = 'RESULT ' + document.title + '\n' + log.join('\n');
+  } catch (e) {
+    document.getElementById('out').textContent = 'ERROR ' + e.message + '\n' + e.stack + '\n\n' + log.join('\n');
+  }
+})();
+</script></body></html>

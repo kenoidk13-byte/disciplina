@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>duration</title>
+<link rel="stylesheet" href="../app.css"></head><body>
+<div id="app" class="app"></div>
+<pre id="out" style="padding:14px;font-size:12px;white-space:pre-wrap;color:#9f9"></pre>
+<script src="../data.js"></script><script src="../app.js"></script><script src="../ui.js"></script>
+<script>
+(function () {
+  var log = [];
+  function ck(n, c, x) { log.push((c ? 'OK   ' : 'FAIL ') + n + (x !== undefined ? ' :: ' + x : '')); }
+  try {
+    var DS = window.DS, S = DS.S, MIN = DS.MIN_SESSION;
+
+    /* логотип без точки и без круга */
+    var mark = document.querySelector('.mark');
+    ck('логотип в шапке', !!mark);
+    ck('логотип без точки', mark.querySelector('i') === null && mark.textContent.trim() === 'disciplina', mark.textContent);
+    ck('логотип без значка', document.querySelector('.mark-i') === null);
+
+    /* все режимы и цели дают день >= 50 минут */
+    ['mass', 'maintain', 'cut'].forEach(function (goal) {
+      [2, 3, 4].forEach(function (n) {
+        S.goal = goal; S.daysPerWeek = n;
+        ['auto', 'custom'].forEach(function (mode) {
+          S.buildMode = mode;
+          if (mode === 'custom') { S.customDays = []; DS.ensureCustomDays(); }
+          DS.generateProgram();
+          var short = S.program.days.filter(function (d) { return DS.daySeconds(d.items) < MIN; });
+          var mins = S.program.days.map(function (d) { return Math.round(DS.daySeconds(d.items) / 60); }).join('/');
+          ck(goal + ' · ' + n + ' дн · ' + mode, short.length === 0 && S.program.days.length === n, mins);
+        });
+      });
+    });
+
+    /* отображение минут и предупреждение на экране программы */
+    S.goal = 'cut'; S.daysPerWeek = 3; S.buildMode = 'auto'; DS.generateProgram();
+    DS.go('program');
+    var shown = [].map.call(document.querySelectorAll('.day-h p'), function (p) { return p.textContent; });
+    ck('в карточках указано >= 50 мин', shown.every(function (t) {
+      var m = t.match(/~(\d+) мин/);
+      return m && parseInt(m[1], 10) >= 50;
+    }), shown.join(' | '));
+    ck('нет предупреждения о коротком дне', !document.getElementById('app').textContent.match(/День короче 50 минут/));
+
+    /* мало упражнений: программа не падает и честно предупреждает */
+    S.selected = ['bench', 'squat', 'bb_row', 'bb_curl', 'plank'];
+    S.buildMode = 'auto'; S.daysPerWeek = 4;
+    DS.generateProgram();
+    ck('скудный набор: программа собрана', S.program && S.program.days.length > 0, S.program ? S.program.days.length : 0);
+    DS.go('program');
+    var anyShort = S.program.days.some(function (d) { return DS.daySeconds(d.items) < MIN; });
+    var hasWarn = !!document.getElementById('app').textContent.match(/День короче 50 минут/);
+    ck('скудный набор: предупреждение соответствует факту', anyShort === hasWarn,
+      'коротких дней: ' + anyShort + ', предупреждение: ' + hasWarn);
+
+    var fails = log.filter(function (l) { return l.indexOf('FAIL') === 0; }).length;
+    document.title = fails ? 'FAIL' : 'PASS';
+    document.getElementById('out').textContent = 'RESULT ' + document.title + '\n' + log.join('\n');
+  } catch (e) {
+    document.title = 'ERROR';
+    document.getElementById('out').textContent = 'ERROR ' + e.message + '\n' + e.stack + '\n\n' + log.join('\n');
+  }
+})();
+</script></body></html>

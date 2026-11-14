@@ -1,0 +1,90 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>sheet drag</title>
+<link rel="stylesheet" href="../app.css">
+<style>html,body{margin:0}#app{max-width:390px;margin:0 auto}pre{position:fixed;left:0;top:0;z-index:999;color:#9f9;background:#000;font-size:11px;white-space:pre-wrap;max-width:390px}</style>
+</head><body>
+<div id="app" class="app"></div>
+<pre id="out"></pre>
+<script src="../data.js"></script><script src="../app.js"></script><script src="../ui.js"></script>
+<script>
+(function () {
+  var DS = window.DS, UI = DS.UI, out = [];
+  function log(s) { out.push(s); document.getElementById('out').textContent = out.join('\n'); }
+  function tick(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+  function pe(type, el, y) {
+    el.dispatchEvent(new PointerEvent(type, { bubbles: true, cancelable: true, pointerId: 1,
+      pointerType: 'touch', isPrimary: true, button: 0, buttons: type === 'pointerup' ? 0 : 1,
+      clientY: y, clientX: 195 }));
+  }
+  function ty(el) {
+    var m = /translate3d\(\s*0(?:px)?\s*,\s*(-?[\d.]+)px/.exec(el.style.transform || '');
+    return m ? Math.round(parseFloat(m[1])) : 0;
+  }
+  function openSheet() {
+    UI.dayKey = 'A'; DS.go('day'); UI.sheet = { type: 'add', exclude: [] }; DS.render();
+  }
+  (async function () {
+    await tick(60);
+
+    /* 1. короткое движение — возврат на место */
+    openSheet(); await tick(80);
+    var grab = document.querySelector('.sheet-grab'), sh = document.querySelector('.sheet');
+    if (!grab || !sh) { log('FAIL: шторка не открылась'); return; }
+    log('sheet h=' + Math.round(sh.getBoundingClientRect().height));
+    var y = 600;
+    pe('pointerdown', grab, y);
+    await tick(80); y += 16; pe('pointermove', grab, y);
+    await tick(80); y += 16; pe('pointermove', grab, y);
+    log('drag y=' + ty(sh));
+    await tick(80); pe('pointerup', grab, y);
+    await tick(700);
+    var a = document.querySelector('.sheet');
+    log('snapback: sheet=' + !!a + ' y=' + (a ? ty(a) : '—'));
+
+    /* 2. флик вниз — закрывается */
+    openSheet(); await tick(80);
+    grab = document.querySelector('.sheet-grab');
+    y = 600;
+    pe('pointerdown', grab, y);
+    await tick(40); y += 90; pe('pointermove', grab, y);
+    await tick(16); y += 110; pe('pointermove', grab, y);
+    pe('pointerup', grab, y);
+    await tick(900);
+    log('flick close: sheetGone=' + !document.querySelector('.sheet') + ' uiSheet=' + !!UI.sheet);
+
+    /* 3. тап по грабберу закрывает */
+    openSheet(); await tick(80);
+    document.querySelector('.sheet-grab').click();
+    await tick(80);
+    log('tap close: sheetGone=' + !document.querySelector('.sheet'));
+
+    /* 4. анимация вида не перезапускается на том же экране */
+    DS.go('settings');
+    var first = document.querySelector('.view').className;
+    DS.render();
+    var second = document.querySelector('.view').className;
+    DS.go('history');
+    var third = document.querySelector('.view').className;
+    log('view: first="' + first + '" same="' + second + '" next="' + third + '"');
+
+    /* 5. строка отдыха не перезапускает анимацию */
+    DS.go('program');
+    document.querySelector('[data-act="start"]').click();
+    await tick(60);
+    document.querySelector('.chk').click();
+    await tick(60);
+    var rest1 = document.querySelector('.rest');
+    if (!rest1) { log('FAIL: отдых не появился'); }
+    else {
+      var c1 = rest1.className;
+      document.querySelectorAll('.chk')[1].click();
+      await tick(60);
+      var c2 = document.querySelector('.rest').className;
+      log('rest: first="' + c1 + '" second="' + c2 + '"');
+    }
+
+    log('RESULT ' + (out.filter(function (s) { return /FAIL/.test(s); }).length ? 'FAIL' : 'PASS'));
+  })();
+})();
+</script>
+</body></html>

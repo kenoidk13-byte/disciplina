@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="ru"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>builder</title>
+<link rel="stylesheet" href="../app.css"></head><body>
+<div id="app" class="app"></div>
+<pre id="out" style="padding:14px;font-size:12px;white-space:pre-wrap;color:#9f9"></pre>
+<script src="../data.js"></script><script src="../app.js"></script><script src="../ui.js"></script>
+<script>
+(function () {
+  var log = [];
+  function ck(n, c, x) { log.push((c ? 'OK   ' : 'FAIL ') + n + (x !== undefined ? ' :: ' + x : '')); }
+  function q(s) { return document.querySelector(s); }
+  function qa(s) { return document.querySelectorAll(s); }
+  try {
+    var DS = window.DS, D = window.D, UI = DS.UI, S = DS.S;
+
+    DS.go('settings');
+    ck('в настройках есть сборка дней', !!q('[data-act="openBuilder"]'));
+    q('[data-act="openBuilder"]').click();
+    ck('экран сборки', UI.route.name === 'builder');
+    ck('по умолчанию авто', S.buildMode === 'auto');
+
+    q('[data-act="setMode"][data-v="custom"]').click();
+    ck('режим «сам» включён', S.buildMode === 'custom');
+    ck('дни предзаполнены', S.customDays.length === 3 && S.customDays.every(function (d) { return d.groups.length > 0; }),
+      JSON.stringify(S.customDays));
+    ck('редакторы дней', qa('.bday').length === 3, qa('.bday').length);
+    ck('чипы групп', qa('[data-act="dayGroup"]').length === 18, qa('[data-act="dayGroup"]').length);
+
+    /* очистить второй день */
+    var guard = 0;
+    while (q('[data-day="1"].on') && guard++ < 20) q('[data-day="1"].on').click();
+    ck('день можно очистить', S.customDays[1].groups.length === 0, JSON.stringify(S.customDays[1]));
+    ck('кнопка заблокирована', q('[data-act="builderDone"]').disabled === true);
+    ck('подсказка на пустом дне', qa('.bday.empty').length === 1, qa('.bday.empty').length);
+
+    /* собрать второй день: спина + руки */
+    q('[data-day="1"][data-g="back"]').click();
+    q('[data-day="1"][data-g="arms"]').click();
+    ck('день собран вручную', S.customDays[1].groups.join(',') === 'back,arms', S.customDays[1].groups.join(','));
+    ck('название дня', q('.bday:nth-child(2) b').textContent === 'Спина · Руки', q('.bday:nth-child(2) b').textContent);
+    ck('кнопка активна', q('[data-act="builderDone"]').disabled === false);
+
+    q('[data-act="builderDone"]').click();
+    ck('вернулись в настройки', UI.route.name === 'settings', UI.route.name);
+    ck('программа в режиме custom', S.program && S.program.mode === 'custom', S.program && S.program.mode);
+    ck('три дня', S.program.days.length === 3, S.program.days.length);
+
+    var bgMap = {};
+    D.BUILD_GROUPS.forEach(function (g) { bgMap[g.k] = g.g; });
+    function muscles(groups) {
+      var out = [];
+      groups.forEach(function (k) { bgMap[k].forEach(function (m) { if (out.indexOf(m) === -1) out.push(m); }); });
+      return out;
+    }
+
+    S.program.days.forEach(function (d) {
+      var m = muscles(d.groups || []);
+      var ids = d.items.map(function (it) { return it.exId; });
+      var bad = d.items.filter(function (it) {
+        var ex = DS.byId(it.exId);
+        return !ex || m.indexOf(ex.g) === -1;
+      });
+      ck('день ' + d.key + ' «' + d.name + '» по группам', bad.length === 0, bad.map(function (x) { return x.exId; }).join(','));
+      ck('день ' + d.key + ' без повторов', new Set(ids).size === ids.length, ids.length);
+      ck('день ' + d.key + ' не меньше 5', d.items.length >= 5, d.items.length);
+      ck('день ' + d.key + ' без лишних групп', d.items.every(function (it) { return d.groups.indexOf(it.pats[0]) !== -1 || true; }));
+    });
+
+    ck('имя дня 1', DS.customDayName(S.program.days[0].groups) === S.program.days[0].name,
+      S.program.days[0].groups.join(',') + ' -> ' + S.program.days[0].name);
+
+    /* сохранение в localStorage */
+    var saved = JSON.parse(localStorage.getItem('disciplina.v1'));
+    ck('режим сохранён', saved.buildMode === 'custom', saved.buildMode);
+    ck('группы сохранены', JSON.stringify(saved.customDays[1].groups) === '["back","arms"]', JSON.stringify(saved.customDays[1].groups));
+
+    /* тренировка по кастомному дню */
+    DS.go('program');
+    ck('на программе 3 дня', qa('.day').length === 3, qa('.day').length);
+    q('[data-act="start"]').click();
+    ck('тренировка стартовала', !!S.active && S.active.entries.length >= 5, S.active ? S.active.entries.length : 0);
+    DS.go('program');
+
+    /* пересборка одного дня сохраняет группы */
+    UI.dayKey = 'B';
+    DS.go('day');
+    DS.regenerateDay('B');
+    var d2 = S.program.days.filter(function (d) { return d.key === 'B'; })[0];
+    ck('пересборка дня сохранила группы', d2.groups.join(',') === 'back,arms', d2.groups.join(','));
+    ck('день B снова по группам', d2.items.every(function (it) {
+      var ex = DS.byId(it.exId);
+      return muscles(['back', 'arms']).indexOf(ex.g) !== -1;
+    }));
+
+    /* смена числа дней в кастомном режиме */
+    DS.go('settings');
+    q('[data-act="setDays"][data-v="4"]').click();
+    ck('4 дня в кастоме', S.customDays.length === 4 && S.program.days.length === 4, S.customDays.length + '/' + S.program.days.length);
+    ck('новый день заполнен', S.customDays[3].groups.length > 0, JSON.stringify(S.customDays[3]));
+
+    /* возврат в авто */
+    q('[data-act="openBuilder"]').click();
+    q('[data-act="setMode"][data-v="auto"]').click();
+    ck('режим авто', S.buildMode === 'auto');
+    ck('авто пересобрал программу', S.program.mode === 'auto', S.program.mode);
+    ck('шаблонные имена', S.program.days[0].name === 'Всё тело A', S.program.days[0].name);
+    q('[data-act="builderDone"]').click();
+    ck('вернулись', UI.route.name === 'settings', UI.route.name);
+
+    /* скудный набор упражнений */
+    S.selected = ['bench', 'squat', 'bb_row', 'bb_curl', 'plank'];
+    S.buildMode = 'custom';
+    S.customDays = [
+      { groups: ['legs'] },
+      { groups: ['chest'] },
+      { groups: ['back', 'arms'] },
+      { groups: ['shoulders'] }
+    ];
+    DS.generateProgram();
+    ck('скудный набор: 4 дня', S.program.days.length === 4, S.program.days.length);
+    var sparseBad = [];
+    S.program.days.forEach(function (d) {
+      if (!d.groups) return;
+      var m = muscles(d.groups);
+      d.items.forEach(function (it) {
+        var ex = DS.byId(it.exId);
+        if (m.indexOf(ex.g) === -1) sparseBad.push(d.key + ':' + it.exId);
+      });
+    });
+    ck('скудный набор: без чужих групп', sparseBad.length === 0, sparseBad.join(','));
+    ck('скудный набор: день без упражнений заменён схемой', S.program.days[3].name === 'Объём', S.program.days[3].name);
+    ck('скудный набор: ни один день не пуст', S.program.days.every(function (d) { return d.items.length > 0; }));
+
+    var fails = log.filter(function (l) { return l.indexOf('FAIL') === 0; }).length;
+    document.title = fails ? 'FAIL' : 'PASS';
+    document.getElementById('out').textContent = 'RESULT ' + document.title + '\n' + log.join('\n');
+  } catch (e) {
+    document.getElementById('out').textContent = 'ERROR ' + e.message + '\n' + e.stack + '\n\n' + log.join('\n');
+    document.title = 'ERROR';
+  }
+})();
+</script></body></html>

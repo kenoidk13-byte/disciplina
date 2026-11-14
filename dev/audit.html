@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>audit</title>
+<link rel="stylesheet" href="../app.css"></head>
+<body>
+<div id="app" class="app"></div>
+<pre id="out" style="padding:16px;font-size:12px;white-space:pre-wrap;color:#9f9"></pre>
+<script src="../data.js"></script>
+<script src="../app.js"></script>
+<script src="../ui.js"></script>
+<script>
+(function () {
+  var log = [];
+  var DS = window.DS, UI = window.DS.UI;
+
+  function check(name) {
+    var de = document.documentElement;
+    var over = de.scrollWidth - de.clientWidth;
+    log.push((over > 1 ? 'OVERFLOW ' : 'ok ') + name + ' :: scrollW=' + de.scrollWidth + ' clientW=' + de.clientWidth);
+    if (over > 1) {
+      var vw = de.clientWidth, bad = [];
+      document.querySelectorAll('.app *').forEach(function (el) {
+        if (el.closest('.chips') || el.closest('.sheet-b')) return;
+        var r = el.getBoundingClientRect();
+        if (r.width > 0 && r.right > vw + 1) bad.push((el.className || el.tagName) + ' r=' + Math.round(r.right));
+      });
+      log.push('   offenders: ' + bad.slice(0, 6).join(' | '));
+    }
+  }
+
+  DS.go('program'); check('program');
+  DS.go('history'); check('history');
+  DS.go('settings'); check('settings');
+  DS.go('pick'); check('pick');
+  DS.go('weights'); check('weights');
+  DS.go('goal'); check('goal');
+
+  UI.dayKey = 'A';
+  DS.go('day'); check('day');
+  DS.go('program');
+  document.querySelector('[data-act="start"]').click();
+  check('session');
+  document.querySelector('.chk').click();
+  check('session+rest');
+
+  document.querySelector('[data-act="finishSession"]').click();
+  check('finish');
+
+  DS.go('program');
+  UI.detailId = DS.S.history[0].id;
+  DS.go('detail'); check('detail');
+
+  // tap-target audit
+  DS.go('program');
+  var small = [];
+  document.querySelectorAll('button').forEach(function (b) {
+    var r = b.getBoundingClientRect();
+    if (r.width && r.height && r.height < 36) small.push((b.className || 'btn') + ' h=' + Math.round(r.height));
+  });
+  log.push('tap<36: ' + (small.length ? small.slice(0, 8).join(', ') : 'none'));
+
+  var fails = log.filter(function (l) { return l.indexOf('OVERFLOW') === 0 || l.indexOf('tap<36: ') === 0 && l !== 'tap<36: none'; }).length;
+  document.title = fails ? 'FAIL' : 'PASS';
+  document.getElementById('out').textContent = 'RESULT ' + document.title + '\n' + log.join('\n');
+})();
+</script>
+</body></html>

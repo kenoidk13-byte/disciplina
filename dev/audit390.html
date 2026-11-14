@@ -1,0 +1,69 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>audit390</title>
+<style>html,body{margin:0;background:#222}iframe{border:0;width:390px;height:844px;display:block}</style></head>
+<body>
+<iframe id="fr"></iframe>
+<pre id="out" style="color:#9f9;font-size:12px;white-space:pre-wrap"></pre>
+<script>
+var W = +(new URLSearchParams(location.search).get('w')) || 390;
+var fr = document.getElementById('fr');
+fr.style.width = W + 'px';
+fr.src = '../index.html#demo';
+fr.onload = function () {
+  var w = fr.contentWindow, d = w.document;
+  var DS = w.DS, UI = w.DS.UI;
+  var log = [];
+
+  function check(name) {
+    var de = d.documentElement;
+    var over = de.scrollWidth - de.clientWidth;
+    log.push((over > 1 ? 'OVERFLOW ' : 'ok ') + name + ' :: scrollW=' + de.scrollWidth + ' clientW=' + de.clientWidth);
+    if (over > 1) {
+      var vw = de.clientWidth, bad = [];
+      d.querySelectorAll('.app *').forEach(function (el) {
+        if (el.closest('.chips') || el.closest('.sheet-b')) return;
+        var r = el.getBoundingClientRect();
+        if (r.width > 0 && r.right > vw + 1) bad.push((el.className || el.tagName) + ' r=' + Math.round(r.right));
+      });
+      log.push('   offenders: ' + bad.slice(0, 8).join(' | '));
+    }
+  }
+  function tapAudit(name) {
+    var vw = d.documentElement.clientWidth, small = [];
+    d.querySelectorAll('button').forEach(function (b) {
+      var r = b.getBoundingClientRect();
+      if (r.width && r.height && r.height < 36) small.push((b.className || 'btn') + ' h=' + Math.round(r.height));
+    });
+    log.push((small.length ? 'SMALL ' : 'ok ') + 'tap ' + name + ' :: ' + (small.length ? small.slice(0, 8).join(', ') : 'none'));
+  }
+
+  DS.go('program'); check('program'); tapAudit('program');
+  DS.go('history'); check('history');
+  DS.go('settings'); check('settings');
+  DS.go('builder'); check('builder');
+  DS.S.buildMode = 'custom'; DS.ensureCustomDays(); DS.go('builder'); check('builder-custom'); tapAudit('builder');
+  DS.go('goal'); check('goal-custom');
+  DS.S.buildMode = 'auto';
+  DS.go('pick'); check('pick'); tapAudit('pick');
+  DS.go('weights'); check('weights');
+  DS.go('goal'); check('goal');
+
+  UI.dayKey = 'A';
+  DS.go('day'); check('day');
+  DS.go('program');
+  d.querySelector('[data-act="start"]').click();
+  check('session');
+  d.querySelector('.chk').click();
+  check('session+rest');
+  d.querySelector('[data-act="finishSession"]').click();
+  check('finish');
+  DS.go('program');
+  UI.detailId = DS.S.history[0].id;
+  DS.go('detail'); check('detail');
+
+  var fails = log.filter(function (l) { return l.indexOf('OVERFLOW') === 0 || l.indexOf('SMALL') === 0; }).length;
+  document.title = fails ? 'FAIL' : 'PASS';
+  document.getElementById('out').textContent = 'RESULT ' + document.title + ' (390px)\n' + log.join('\n');
+};
+</script>
+</body></html>
