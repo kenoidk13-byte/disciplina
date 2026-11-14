@@ -43,7 +43,7 @@ var D = (function () {
   /* [id, название, группа, паттерн, инвентарь, уровень] */
   var RAW = [
     ['bench', 'Жим штанги лёжа', 'chest', 'hpush', 'barbell', 1],
-    ['bench_incline', 'Жим штанги на наклонной', 'chest', 'hpush', 'barbell', 2],
+    ['bench_incline', 'Жим в тренажёре на наклонной', 'chest', 'hpush', 'machine', 1],
     ['db_bench', 'Жим гантелей лёжа', 'chest', 'hpush', 'dumbbell', 1],
     ['db_incline', 'Жим гантелей на наклонной', 'chest', 'hpush', 'dumbbell', 1],
     ['machine_press', 'Жим в тренажёре', 'chest', 'hpush', 'machine', 1],
