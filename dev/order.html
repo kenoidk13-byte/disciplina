@@ -20,7 +20,9 @@
     return true;
   }
   try {
-    var S = DS.S;
+    var D = window.D, S = DS.S;
+    if (!S.selected.length) S.selected = D.EXERCISES.map(function (e) { return e.id; });
+    S.onboarded = true;
 
     /* вся программа: база раньше изоляции, крупные раньше мелких */
     var bad = [], days = 0;

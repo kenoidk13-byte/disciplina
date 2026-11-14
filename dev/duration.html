@@ -9,7 +9,9 @@
   var log = [];
   function ck(n, c, x) { log.push((c ? 'OK   ' : 'FAIL ') + n + (x !== undefined ? ' :: ' + x : '')); }
   try {
-    var DS = window.DS, S = DS.S, MIN = DS.MIN_SESSION;
+    var DS = window.DS, D = window.D, S = DS.S, MIN = DS.MIN_SESSION;
+    if (!S.selected.length) S.selected = D.EXERCISES.map(function (e) { return e.id; });
+    S.onboarded = true;
 
     /* логотип без точки и без круга */
     var mark = document.querySelector('.mark');
