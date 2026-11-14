@@ -104,7 +104,7 @@
     q('[data-act="setMode"][data-v="auto"]').click();
     ck('режим авто', S.buildMode === 'auto');
     ck('авто пересобрал программу', S.program.mode === 'auto', S.program.mode);
-    ck('шаблонные имена', S.program.days[0].name === 'Всё тело A', S.program.days[0].name);
+    ck('шаблонные имена', S.program.days[0].name === 'Верх A', S.program.days[0].name);
     q('[data-act="builderDone"]').click();
     ck('вернулись', UI.route.name === 'settings', UI.route.name);
 

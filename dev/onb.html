@@ -44,7 +44,7 @@
     ck('цель в шапке', document.querySelector('.goalchip').textContent.indexOf('Сушка') !== -1, document.querySelector('.goalchip').textContent);
 
     var it = S.program.days[0].items[0];
-    ck('схема под сушку', it.lo === 10 || it.lo === 12, it.lo + '-' + it.hi);
+    ck('схема под сушку', it.lo === 8 || it.lo === 10 || it.lo === 12, it.lo + '-' + it.hi);
     ck('день заполнен', S.program.days[0].items.length >= 4, S.program.days[0].items.length);
 
     document.querySelector('[data-act="start"]').click();

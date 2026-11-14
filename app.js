@@ -168,15 +168,18 @@
   function scheme(ex) {
     var g = S.goal;
     var compound = ['squat', 'hinge', 'lunge', 'hpush', 'vpush', 'hpull', 'vpull'].indexOf(ex.pat) !== -1;
+    /* RIR — сколько повторов оставлять в запасе в последнем подходе.
+       База 1–3, изоляция 0–2 — по Хелмсу/Ниппарду. */
     var s;
-    if (g === 'mass') s = compound ? { sets: 4, lo: 6, hi: 10, rest: 120 } : { sets: 3, lo: 10, hi: 12, rest: 90 };
-    else if (g === 'cut') s = compound ? { sets: 3, lo: 10, hi: 12, rest: 75 } : { sets: 3, lo: 12, hi: 15, rest: 45 };
-    else s = compound ? { sets: 3, lo: 8, hi: 10, rest: 90 } : { sets: 3, lo: 10, hi: 12, rest: 60 };
+    if (g === 'mass') s = compound ? { sets: 4, lo: 6, hi: 10, rest: 120, rir: 2 } : { sets: 3, lo: 10, hi: 15, rest: 75, rir: 1 };
+    else if (g === 'cut') s = compound ? { sets: 3, lo: 8, hi: 12, rest: 120, rir: 1 } : { sets: 3, lo: 12, hi: 20, rest: 60, rir: 0 };
+    else s = compound ? { sets: 3, lo: 6, hi: 10, rest: 120, rir: 3 } : { sets: 3, lo: 10, hi: 15, rest: 60, rir: 2 };
 
-    if (ex.pat === 'core') s = { sets: 3, lo: 12, hi: 15, rest: 45 };
-    if (ex.pat === 'calves') s = { sets: 3, lo: 12, hi: 15, rest: 45 };
+    if (ex.pat === 'core') s = { sets: 3, lo: 12, hi: 20, rest: 45, rir: 1 };
+    if (ex.pat === 'calves') s = { sets: 4, lo: 10, hi: 15, rest: 60, rir: 1 };
+    if (ex.pat === 'delt_iso' || ex.pat === 'rear_delt') s = { sets: 3, lo: 12, hi: 20, rest: 45, rir: 1 };
     if (ex.eq === 'bodyweight' && (ex.pat === 'hpush' || ex.pat === 'vpush')) {
-      s = { sets: 3, lo: 10, hi: 15, rest: 60 };
+      s = { sets: 3, lo: 8, hi: 15, rest: 60, rir: 1 };
     }
     return s;
   }
@@ -211,7 +214,7 @@
     var sc = scheme(ex);
     return {
       exId: ex.id,
-      sets: sc.sets, lo: sc.lo, hi: sc.hi, rest: sc.rest,
+      sets: sc.sets, lo: sc.lo, hi: sc.hi, rest: sc.rest, rir: sc.rir,
       pats: (slotPats || [ex.pat]).slice()
     };
   }
@@ -228,7 +231,7 @@
 
   var MIN_SESSION = 50 * 60;   /* тренировка не короче 50 минут */
   var SET_OVERHEAD = 35;       /* подход + переход */
-  var MAX_EX = 8;              /* потолок упражнений в дне */
+  var MAX_EX = 9;              /* потолок упражнений в дне */
 
   function daySeconds(items) {
     var s = 0;
@@ -236,35 +239,147 @@
     return s;
   }
 
-  function fitDay(items, dayIds, cands, weekUse, recent) {
+  /* ---------------- недельный объём ----------------
+     Ориентиры: 10–20 подходов на мышцу в неделю (Хелмс, Ниппард,
+     Шёнфельд), частота 2+, RIR 1–3 на базе и 0–2 на изоляции.
+     Косвенная работа от базовых движений считается за 0.4–0.5 подхода. */
+
+  var VOL_TARGET = {
+    chest: [10, 20], back: [10, 20], shoulders: [9, 18],
+    biceps: [8, 16], triceps: [8, 16],
+    quads: [10, 20], ham: [8, 16], glutes: [8, 16],
+    calves: [8, 14], abs: [6, 12], traps: [4, 10]
+  };
+
+  var PAT_AFF = {
+    squat: { quads: 1, glutes: 0.4, ham: 0.25 },
+    lunge: { quads: 1, glutes: 0.4, ham: 0.25 },
+    hpush: { chest: 1, shoulders: 0.5, triceps: 0.5 },
+    vpush: { shoulders: 1, triceps: 0.5 },
+    hpull: { back: 1, biceps: 0.5 },
+    vpull: { back: 1, biceps: 0.5 },
+    rear_delt: { shoulders: 1, back: 0.25 },
+    core: { abs: 1 }
+  };
+
+  var PAT_PRIMARY = {
+    squat: 'quads', lunge: 'quads', hpush: 'chest', vpush: 'shoulders',
+    hpull: 'back', vpull: 'back'
+  };
+
+  function muscleAffinity(ex) {
+    var a;
+    if (ex.pat === 'hinge') {
+      /* таз: ягодичный мост/траст — ягодицы, остальное — бицепс бедра */
+      a = ex.g === 'glutes'
+        ? { glutes: 1, ham: 0.4, back: 0.25 }
+        : { ham: 1, glutes: 0.6, back: 0.4 };
+    } else {
+      a = {};
+      var base = PAT_AFF[ex.pat];
+      if (base) Object.keys(base).forEach(function (m) { a[m] = base[m]; });
+      a[ex.g] = Math.max(a[ex.g] || 0, 1);
+    }
+    return a;
+  }
+
+  function primaryMuscle(ex) {
+    if (ex.pat === 'hinge') return ex.g === 'glutes' ? 'glutes' : 'ham';
+    return PAT_PRIMARY[ex.pat] || ex.g;
+  }
+
+  function addVolume(vol, ex, sets) {
+    var a = muscleAffinity(ex);
+    Object.keys(a).forEach(function (m) { vol[m] = (vol[m] || 0) + sets * a[m]; });
+  }
+
+  function overHigh(ex, vol) {
+    var a = muscleAffinity(ex);
+    return Object.keys(a).some(function (m) {
+      return (vol[m] || 0) + a[m] > volTarget(m)[1] + 2.01;
+    });
+  }
+
+  function weekVolume() {
+    var vol = {};
+    if (!S.program) return vol;
+    S.program.days.forEach(function (d) {
+      (d.items || []).forEach(function (it) {
+        var ex = byId(it.exId);
+        if (ex) addVolume(vol, ex, it.sets);
+      });
+    });
+    return vol;
+  }
+
+  function weekFrequency() {
+    var f = {};
+    if (!S.program) return f;
+    S.program.days.forEach(function (d) {
+      var seen = {};
+      (d.items || []).forEach(function (it) {
+        var ex = byId(it.exId);
+        if (!ex) return;
+        var a = muscleAffinity(ex);
+        Object.keys(a).forEach(function (m) {
+          if (a[m] >= 0.5 && !seen[m]) { seen[m] = true; f[m] = (f[m] || 0) + 1; }
+        });
+      });
+    });
+    return f;
+  }
+
+  function volTarget(m) {
+    var t = VOL_TARGET[m] || [8, 16];
+    /* за 2 тренировки по 50–70 минут 10+ подходов на все мышцы не влезает:
+       цель снижена, но остаётся выше поддерживающего минимума */
+    if (clamp(S.daysPerWeek, 2, 4) === 2) {
+      return [Math.round(t[0] * 0.7), Math.round(t[1] * 0.9)];
+    }
+    return t.slice();
+  }
+
+  function inScope(ex, scope) {
+    if (!scope) return true;
+    if (scope.indexOf(primaryMuscle(ex)) !== -1) return true;
+    var a = muscleAffinity(ex);
+    return Object.keys(a).some(function (m) { return a[m] >= 0.5 && scope.indexOf(m) !== -1; });
+  }
+
+  function fitDay(items, ctx) {
     if (!items.length) return items;
     var setCap = S.goal === 'cut' ? 4 : 5;
     var restCap = S.goal === 'mass' ? 180 : S.goal === 'maintain' ? 150 : 120;
 
-    /* 1. добираем упражнения, пока день короче 50 минут */
-    while (items.length < MAX_EX && daySeconds(items) < MIN_SESSION) {
-      var free = cands.filter(function (e) { return !dayIds[e.id]; });
-      var best = pickBest(free, weekUse, recent, dayIds);
-      if (!best) break;
-      take(items, dayIds, weekUse, best);
-    }
-
-    /* 2. подходы: по кругу, пока не наберём время */
-    var guard = 0;
-    while (daySeconds(items) < MIN_SESSION && guard++ < 200) {
-      var grown = false;
-      for (var i = 0; i < items.length; i++) {
-        if (items[i].sets < setCap) {
+    function addSets(checkVolume) {
+      var guard = 0;
+      while (daySeconds(items) < MIN_SESSION && guard++ < 400) {
+        var grown = false;
+        for (var i = 0; i < items.length; i++) {
+          if (items[i].sets >= setCap) continue;
+          var ex = byId(items[i].exId);
+          if (!ex) continue;
+          var a = muscleAffinity(ex);
+          if (checkVolume) {
+            var over = Object.keys(a).some(function (m) {
+              var t = volTarget(m);
+              return (ctx.vol[m] || 0) + a[m] > t[1] + 0.01;
+            });
+            if (over) continue;
+          }
           items[i].sets++;
+          if (ctx && ctx.vol) {
+            Object.keys(a).forEach(function (m) { ctx.vol[m] = (ctx.vol[m] || 0) + a[m]; });
+          }
           grown = true;
           if (daySeconds(items) >= MIN_SESSION) break;
         }
+        if (!grown) break;
       }
-      if (!grown) break;
     }
 
-    /* 3. отдых — крайняя мера, если упражнений и подходов не хватило */
-    guard = 0;
+    /* 1. отдых — добираем 50 минут, не раздувая объём */
+    var guard = 0;
     while (daySeconds(items) < MIN_SESSION && guard++ < 200) {
       var rested = false;
       for (var j = 0; j < items.length; j++) {
@@ -276,52 +391,193 @@
       }
       if (!rested) break;
     }
+
+    /* 2. скудный набор: если отдыха не хватило — добавляем подходы */
+    addSets(false);
     return items;
   }
 
-  function pickBest(cands, weekUse, recent, dayIds) {
-    var best = null, bestScore = 1e9;
+  /* после сборки всех дней добираем подходы мышцам, которые не дошли
+     до нижней границы недельного объёма. День не длиннее 75 минут,
+     потолок цели не превышаем больше чем на 2 подхода. */
+  function volumeOfDays(days) {
+    var vol = {};
+    (days || []).forEach(function (d) {
+      (d.items || []).forEach(function (it) {
+        var ex = byId(it.exId);
+        if (ex) addVolume(vol, ex, it.sets);
+      });
+    });
+    return vol;
+  }
+
+  function balanceVolume(days) {
+    if (!days || !days.length) return;
+    var vol = volumeOfDays(days);
+    var setCap = S.goal === 'cut' ? 4 : 5;
+    var maxSec = 75 * 60;
+    var guard = 0;
+
+    while (guard++ < 200) {
+      var changed = false;
+      D.GORDER.forEach(function (m) {
+        var t = volTarget(m);
+        if ((vol[m] || 0) >= t[0]) return;
+
+        var best = null, bestSec = Infinity;
+        days.forEach(function (d) {
+          var sec = daySeconds(d.items);
+          d.items.forEach(function (it) {
+            var ex = byId(it.exId);
+            if (!ex || primaryMuscle(ex) !== m || it.sets >= setCap) return;
+            if (sec + it.rest + SET_OVERHEAD > maxSec) return;
+            var a = muscleAffinity(ex);
+            if (overHigh(ex, vol)) return;
+            if (sec < bestSec) { best = { it: it, a: a }; bestSec = sec; }
+          });
+        });
+
+        if (best) {
+          best.it.sets++;
+          var a = best.a;
+          Object.keys(a).forEach(function (mm) { vol[mm] = (vol[mm] || 0) + a[mm]; });
+          changed = true;
+        }
+      });
+      if (!changed) break;
+    }
+  }
+
+  /* контекст недели: пул, уже использованные упражнения и объём */
+  function newContext() {
+    return { pool: pool(), exUse: {}, vol: {}, recent: recentIds(3) };
+  }
+
+  function needScore(ex, ctx, dayPrimary) {
+    var a = muscleAffinity(ex);
+    var s = 0;
+    Object.keys(a).forEach(function (m) {
+      var t = volTarget(m), cur = ctx.vol[m] || 0, w = a[m];
+      if (cur < t[0]) s += (t[0] - cur) * w * 3;
+      else if (cur < t[1]) s += (t[1] - cur) * w * 0.6;
+      else s -= Math.min(cur - t[1], 20) * w * 1.2;
+      /* не добираем мышцу выше недельного потолка */
+      if (cur >= t[1] - 1) s -= 25 * w;
+      else if (cur + 3 * w > t[1]) s -= 12 * w;
+    });
+    if ((dayPrimary[primaryMuscle(ex)] || 0) >= 2) s -= 1000;
+    if (ctx.exUse[ex.id]) s -= 40;
+    if (ctx.recent[ex.id]) s -= 8;
+    if (ex.lvl > 2) s -= 2.5;
+    s -= (EQ_PREF[ex.eq] || 0) * 1.5;
+    s += Math.random() * 1.2;
+    return s;
+  }
+
+  /* сначала не использованные на этой неделе, иначе — любые */
+  function fresh(cands, ctx) {
+    var out = cands.filter(function (e) { return !ctx.exUse[e.id]; });
+    return out.length ? out : cands;
+  }
+
+  function bestByScore(cands, ctx, dayPrimary, dayIds) {
+    var best = null, bestScore = -1e9;
     cands.forEach(function (e) {
-      var sc = Math.random() * 2.4;
-      if (dayIds && dayIds[e.id]) sc += 100;
-      sc += (weekUse[e.id] || 0) * 7;
-      if (recent[e.id]) sc += 4;
-      if (e.lvl > 2) sc += 2.5;
-      sc += EQ_PREF[e.eq] || 0;
-      if (sc < bestScore) { bestScore = sc; best = e; }
+      if (dayIds[e.id]) return;
+      var sc = needScore(e, ctx, dayPrimary);
+      if (sc > bestScore) { bestScore = sc; best = e; }
     });
     return best;
   }
 
-  function take(items, dayIds, weekUse, ex, slotPats) {
-    if (!ex || dayIds[ex.id]) return;
+  function takeScored(items, dayIds, dayPrimary, ctx, ex, slotPats) {
+    if (!ex || dayIds[ex.id]) return false;
+    var item = itemFrom(ex, slotPats);
     dayIds[ex.id] = true;
-    weekUse[ex.id] = (weekUse[ex.id] || 0) + 1;
-    items.push(itemFrom(ex, slotPats));
+    var pm = primaryMuscle(ex);
+    dayPrimary[pm] = (dayPrimary[pm] || 0) + 1;
+    ctx.exUse[ex.id] = (ctx.exUse[ex.id] || 0) + 1;
+    addVolume(ctx.vol, ex, item.sets);
+    items.push(item);
+    return true;
   }
 
-  function fillDay(items, dayIds, cands, weekUse, recent) {
-    var extra = cands.filter(function (e) { return !dayIds[e.id]; });
-    extra.sort(function (a, b) {
-      return (weekUse[a.id] || 0) - (weekUse[b.id] || 0) || Math.random() - 0.5;
+  function slotCandidates(ctx, slot, dayIds, dayPrimary, scope, relaxCap) {
+    return ctx.pool.filter(function (e) {
+      if (slot.pats.indexOf(e.pat) === -1) return false;
+      if (!inScope(e, scope)) return false;
+      if (dayIds[e.id]) return false;
+      if (!relaxCap && (dayPrimary[primaryMuscle(e)] || 0) >= 2) return false;
+      return true;
     });
-    for (var k = 0; k < extra.length && items.length < 5; k++) {
-      take(items, dayIds, weekUse, extra[k]);
-    }
   }
 
-  function buildDayItems(tpl, p, weekUse, recent) {
-    var items = [], dayIds = {};
-    tpl.slots.forEach(function (slot) {
-      var cands = p.filter(function (e) { return slot.pats.indexOf(e.pat) !== -1 && !dayIds[e.id]; });
+  /* какие мышцы закрывает слот — для замены упражнения без повтора */
+  function slotMuscles(slot) {
+    var map = {
+      hinge: ['ham', 'glutes'], core: ['abs'], calves: ['calves'],
+      quad_iso: ['quads'], ham_iso: ['ham'], glute_iso: ['glutes'],
+      chest_iso: ['chest'], delt_iso: ['shoulders'], rear_delt: ['shoulders'],
+      biceps: ['biceps'], triceps: ['triceps']
+    };
+    var out = [];
+    (slot.pats || []).forEach(function (p) {
+      var ms = map[p] || (PAT_PRIMARY[p] ? [PAT_PRIMARY[p]] : []);
+      ms.forEach(function (m) { if (out.indexOf(m) === -1) out.push(m); });
+    });
+    return out;
+  }
+
+  function buildSplitDay(spec, ctx) {
+    var items = [], dayIds = {}, dayPrimary = {};
+    var scope = spec.scope || null;
+    var maxEx = spec.maxEx || 8;
+
+    (spec.slots || []).forEach(function (slot) {
+      function unused(list) {
+        return list.filter(function (e) { return !ctx.exUse[e.id]; });
+      }
+      var cands = unused(slotCandidates(ctx, slot, dayIds, dayPrimary, scope, false));
       if (!cands.length) {
-        cands = p.filter(function (e) { return slot.pats.indexOf(e.pat) !== -1; });
+        var relaxed = slotCandidates(ctx, slot, dayIds, dayPrimary, scope, true);
+        cands = unused(relaxed);
+        /* паттерн исчерпан: берём неиспользованное упражнение той же мышцы,
+           чтобы не повторять одно и то же в течение недели */
+        if (!cands.length) {
+          var ms = slotMuscles(slot);
+          cands = ctx.pool.filter(function (e) {
+            var pm = primaryMuscle(e);
+            return !dayIds[e.id] && !ctx.exUse[e.id] && inScope(e, scope) &&
+              ms.indexOf(pm) !== -1 && (dayPrimary[pm] || 0) < 2;
+          });
+        }
+        /* совсем нет вариантов — повторяем упражнение */
+        if (!cands.length) cands = relaxed;
       }
       if (!cands.length) return;
-      take(items, dayIds, weekUse, pickBest(cands, weekUse, recent, dayIds), slot.pats);
+      takeScored(items, dayIds, dayPrimary, ctx, bestByScore(cands, ctx, dayPrimary, dayIds), slot.pats);
     });
-    if (items.length < 5) fillDay(items, dayIds, p, weekUse, recent);
-    return orderItems(fitDay(items, dayIds, p, weekUse, recent));
+
+    /* добиваем день упражнениями самых отстающих по объёму мышц */
+    while (items.length < maxEx) {
+      var extra = fresh(ctx.pool.filter(function (e) {
+        return !dayIds[e.id] && inScope(e, scope) && (dayPrimary[primaryMuscle(e)] || 0) < 2 &&
+          !overHigh(e, ctx.vol);
+      }), ctx);
+      if (!extra.length) break;
+      var best = bestByScore(extra, ctx, dayPrimary, dayIds);
+      if (!best) break;
+      takeScored(items, dayIds, dayPrimary, ctx, best);
+    }
+
+    /* страховка для скудного набора: добираем из всего пула */
+    while (items.length < 5) {
+      var any = fresh(ctx.pool.filter(function (e) { return !dayIds[e.id]; }), ctx);
+      if (!any.length) break;
+      takeScored(items, dayIds, dayPrimary, ctx, bestByScore(any, ctx, dayPrimary, dayIds));
+    }
+
+    return orderItems(fitDay(items, ctx));
   }
 
   /* ---------------- конструктор дней по группам ---------------- */
@@ -398,20 +654,21 @@
 
   function ensureCustomDays() { return normalizeCustomDays(true); }
 
-  function buildCustomDay(groups, p, weekUse, recent) {
+  function buildCustomDay(groups, ctx) {
     groups = migrateGroups(groups);
     var order = CUSTOM_ORDER.filter(function (g) { return groups.indexOf(g) !== -1; });
     if (!order.length) return [];
 
     var counts = {}, seq = [], guard = 0;
     order.forEach(function (g) { counts[g] = 0; });
-    while (seq.length < 6 && guard < 60) {
+    while (seq.length < 7 && guard < 60) {
       var g = order[seq.length % order.length];
       if (counts[g] < (CUSTOM_CAP[g] || 2)) { counts[g]++; seq.push(g); }
       guard++;
     }
 
-    var items = [], dayIds = {}, gi = {};
+    var mine = musclesOf(groups);
+    var items = [], dayIds = {}, dayPrimary = {}, gi = {};
     seq.forEach(function (group) {
       var idx = gi[group] || 0;
       gi[group] = idx + 1;
@@ -419,29 +676,49 @@
       var pat = pats.length ? pats[idx % pats.length] : null;
       var muscles = groupMuscles(group);
 
-      var inGroup = p.filter(function (e) { return muscles.indexOf(e.g) !== -1 && !dayIds[e.id]; });
+      var inGroup = ctx.pool.filter(function (e) { return muscles.indexOf(e.g) !== -1 && !dayIds[e.id]; });
       var cands = pat ? inGroup.filter(function (e) { return e.pat === pat; }) : [];
       if (!cands.length) cands = inGroup;
+      cands = fresh(cands, ctx);
       if (!cands.length) return;
 
-      var best = pickBest(cands, weekUse, recent, dayIds);
-      take(items, dayIds, weekUse, best, pat ? [pat] : null);
+      takeScored(items, dayIds, dayPrimary, ctx,
+        bestByScore(cands, ctx, dayPrimary, dayIds), pat ? [pat] : null);
     });
 
-    if (items.length < 5) {
-      var mine = musclesOf(groups);
-      fillDay(items, dayIds, p.filter(function (e) { return mine.indexOf(e.g) !== -1; }), weekUse, recent);
+    /* добиваем объём внутри выбранных групп */
+    while (items.length < 8) {
+      var extra = fresh(ctx.pool.filter(function (e) {
+        return !dayIds[e.id] && mine.indexOf(e.g) !== -1 &&
+          (dayPrimary[primaryMuscle(e)] || 0) < 2 && !overHigh(e, ctx.vol);
+      }), ctx);
+      if (!extra.length) break;
+      var best = bestByScore(extra, ctx, dayPrimary, dayIds);
+      if (!best) break;
+      takeScored(items, dayIds, dayPrimary, ctx, best);
     }
-    var mineAll = musclesOf(groups);
-    return orderItems(fitDay(items, dayIds, p.filter(function (e) { return mineAll.indexOf(e.g) !== -1; }), weekUse, recent));
+
+    /* если упражнений мало — берём всё, что есть в группах */
+    while (items.length < 5) {
+      var any = fresh(ctx.pool.filter(function (e) {
+        return !dayIds[e.id] && mine.indexOf(e.g) !== -1;
+      }), ctx);
+      if (!any.length) break;
+      takeScored(items, dayIds, dayPrimary, ctx, bestByScore(any, ctx, dayPrimary, dayIds));
+    }
+
+    return orderItems(fitDay(items, ctx));
+  }
+
+  function templateSpec(tpl, key) {
+    return { key: key, name: tpl.name, scope: null, maxEx: 8, slots: tpl.slots };
   }
 
   function generateProgram() {
     var p = pool();
     if (!p.length) return;
-    var recent = recentIds(3);
+    var ctx = newContext();
     var count = clamp(S.daysPerWeek, 2, 4);
-    var weekUse = {};
     var days = [];
 
     if (S.buildMode === 'custom') {
@@ -451,7 +728,7 @@
         var used = {};
         plan.forEach(function (d, i) {
           if (!d.groups.length) return;
-          var citems = buildCustomDay(d.groups, p, weekUse, recent);
+          var citems = buildCustomDay(d.groups, ctx);
           if (!citems.length) return;
           used['ABCD'[i]] = true;
           days.push({
@@ -466,11 +743,12 @@
           var keyF = 'ABCD'[j];
           if (used[keyF]) continue;
           var tplF = D.DAY_TEMPLATES[j % D.DAY_TEMPLATES.length];
-          var itemsF = buildDayItems(tplF, p, weekUse, recent);
+          var itemsF = buildSplitDay(templateSpec(tplF, keyF), ctx);
           if (itemsF.length) days.push({ key: keyF, name: tplF.name, items: itemsF });
         }
         if (days.length) {
           days.sort(function (a, b) { return a.key < b.key ? -1 : 1; });
+          balanceVolume(days);
           S.program = { createdAt: Date.now(), mode: 'custom', days: days };
           save();
           return;
@@ -478,11 +756,15 @@
       }
     }
 
-    for (var i = 0; i < count; i++) {
-      var tpl = D.DAY_TEMPLATES[i % D.DAY_TEMPLATES.length];
-      var items = buildDayItems(tpl, p, weekUse, recent);
-      if (items.length) days.push({ key: tpl.key, name: tpl.name, items: items });
-    }
+    /* авто: 2–3 дня фулбоди, 4 дня верх/низ — по рекомендациям
+       Helms / Nippard / RP: 2+ тренировки на мышцу и 10–20 подходов */
+    var split = D.SPLITS[count] || D.SPLITS[3];
+    split.forEach(function (spec, i) {
+      if (i >= count) return;
+      var items = buildSplitDay(spec, ctx);
+      if (items.length) days.push({ key: spec.key, name: spec.name, items: items });
+    });
+    balanceVolume(days);
     S.program = { createdAt: Date.now(), mode: 'auto', days: days };
     save();
   }
@@ -491,20 +773,27 @@
     if (!S.program) return;
     var day = S.program.days.filter(function (d) { return d.key === key; })[0];
     if (!day) return;
-    var weekUse = {};
+    var ctx = newContext();
     S.program.days.forEach(function (d) {
       if (d.key === key) return;
-      d.items.forEach(function (it) { weekUse[it.exId] = (weekUse[it.exId] || 0) + 1; });
+      (d.items || []).forEach(function (it) {
+        var ex = byId(it.exId);
+        if (!ex) return;
+        ctx.exUse[ex.id] = (ctx.exUse[ex.id] || 0) + 1;
+        addVolume(ctx.vol, ex, it.sets);
+      });
     });
-    var recent = recentIds(3);
     var items;
     if (S.program.mode === 'custom' && day.groups && day.groups.length) {
-      items = buildCustomDay(day.groups, pool(), weekUse, recent);
+      items = buildCustomDay(day.groups, ctx);
     } else {
-      var tpl = D.DAY_TEMPLATES.filter(function (t) { return t.key === key; })[0] || D.DAY_TEMPLATES[0];
-      items = buildDayItems(tpl, pool(), weekUse, recent);
+      var split = D.SPLITS[clamp(S.daysPerWeek, 2, 4)] || D.SPLITS[3];
+      var spec = split.filter(function (s) { return s.key === key; })[0] ||
+        { key: key, name: day.name, scope: null, maxEx: 8, slots: [] };
+      items = buildSplitDay(spec, ctx);
     }
     if (items.length) day.items = items;
+    balanceVolume(S.program.days);
     save();
   }
 
@@ -517,6 +806,62 @@
     });
     S.program.days = S.program.days.filter(function (d) { return d.items.length; });
     if (!S.program.days.length) S.program = null;
+    save();
+  }
+
+  /* ---------------- разгрузка ----------------
+     После ~6 недель объём срезается на 40% на неделю: это снижает
+     накопленную усталость, не теряя мышцы (RP / Helms deload). */
+
+  var DELOAD_AFTER = 42 * 86400000;
+
+  function needsDeload() {
+    if (!S.program || S.program.deload) return false;
+    var since = S.program.lastDeloadAt || S.program.createdAt;
+    return Date.now() - since > DELOAD_AFTER;
+  }
+
+  function deloadState() {
+    if (!S.program || !S.program.deload) return null;
+    return {
+      active: Date.now() < S.program.deload.until,
+      at: S.program.deload.at,
+      until: S.program.deload.until
+    };
+  }
+
+  function startDeload() {
+    if (!S.program || S.program.deload) return;
+    var backup = S.program.days.map(function (d) {
+      return {
+        key: d.key,
+        sets: d.items.map(function (it) { return { exId: it.exId, sets: it.sets }; })
+      };
+    });
+    S.program.days.forEach(function (d) {
+      d.items.forEach(function (it) { it.sets = Math.max(2, Math.round(it.sets * 0.6)); });
+    });
+    S.program.deload = { at: Date.now(), until: Date.now() + 7 * 86400000 };
+    S.program.deloadBackup = backup;
+    S.program.lastDeloadAt = Date.now();
+    save();
+  }
+
+  function endDeload() {
+    if (!S.program || !S.program.deload) return;
+    var backup = S.program.deloadBackup;
+    if (Array.isArray(backup)) {
+      S.program.days.forEach(function (d) {
+        var bd = backup.filter(function (x) { return x.key === d.key; })[0];
+        if (!bd) return;
+        d.items.forEach(function (it) {
+          var old = bd.sets.filter(function (x) { return x.exId === it.exId; })[0];
+          if (old) it.sets = old.sets;
+        });
+      });
+    }
+    delete S.program.deload;
+    delete S.program.deloadBackup;
     save();
   }
 
@@ -585,7 +930,7 @@
       var w = weightFor(it.exId);
       return {
         exId: it.exId,
-        sets: it.sets, lo: it.lo, hi: it.hi, rest: it.rest,
+        sets: it.sets, lo: it.lo, hi: it.hi, rest: it.rest, rir: it.rir,
         prev: weightFor(it.exId),
         weight: w,
         rows: Array.apply(null, Array(it.sets)).map(function () {
@@ -746,6 +1091,9 @@
     byId: byId, pool: pool, isAvailable: isAvailable, scheme: scheme, itemFrom: itemFrom,
     orderItems: orderItems, PAT_RANK: PAT_RANK,
     generateProgram: generateProgram, regenerateDay: regenerateDay, pruneProgram: pruneProgram,
+    weekVolume: weekVolume, weekFrequency: weekFrequency, volTarget: volTarget,
+    VOL_TARGET: VOL_TARGET, muscleAffinity: muscleAffinity,
+    needsDeload: needsDeload, deloadState: deloadState, startDeload: startDeload, endDeload: endDeload,
     customDaysPlan: customDaysPlan, ensureCustomDays: ensureCustomDays,
     customDayName: customDayName, groupTitle: groupTitle,
     stepFor: stepFor, lastEntry: lastEntry, weightFor: weightFor, exerciseSeries: exerciseSeries,

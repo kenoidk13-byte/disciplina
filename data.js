@@ -197,6 +197,109 @@ var D = (function () {
     ] }
   ];
 
+  /* Недельные сплиты для авто-режима.
+     Слоты задают приоритетные паттерны, генератор добивает день
+     упражнениями самых отстающих по недельному объёму мышц.
+     2 и 3 дня — фулбоди (каждая мышца 2–3 раза в неделю),
+     4 дня — верх/низ (верх и низ по два раза). */
+  var SPLITS = {
+    2: [
+      { key: 'A', name: 'Всё тело A', scope: null, maxEx: 9, slots: [
+        { pats: ['squat', 'lunge'], t: 'Приседание' },
+        { pats: ['hpush'], t: 'Жим' },
+        { pats: ['vpull', 'hpull'], t: 'Тяга' },
+        { pats: ['hinge'], t: 'Таз' },
+        { pats: ['delt_iso'], t: 'Дельты' },
+        { pats: ['biceps'], t: 'Бицепс' },
+        { pats: ['triceps'], t: 'Трицепс' },
+        { pats: ['core'], t: 'Пресс' }
+      ] },
+      { key: 'B', name: 'Всё тело B', scope: null, maxEx: 9, slots: [
+        { pats: ['lunge', 'squat'], t: 'Ноги' },
+        { pats: ['hpush'], t: 'Жим' },
+        { pats: ['hpull', 'vpull'], t: 'Тяга' },
+        { pats: ['ham_iso'], t: 'Бицепс бедра' },
+        { pats: ['glute_iso'], t: 'Ягодицы' },
+        { pats: ['vpush'], t: 'Плечи' },
+        { pats: ['biceps'], t: 'Бицепс' },
+        { pats: ['calves'], t: 'Икры' },
+        { pats: ['core'], t: 'Пресс' }
+      ] }
+    ],
+    3: [
+      { key: 'A', name: 'Всё тело A', scope: null, maxEx: 8, slots: [
+        { pats: ['squat', 'lunge'], t: 'Приседание' },
+        { pats: ['hpush'], t: 'Жим' },
+        { pats: ['vpull', 'hpull'], t: 'Тяга' },
+        { pats: ['hinge'], t: 'Таз' },
+        { pats: ['delt_iso'], t: 'Дельты' },
+        { pats: ['biceps'], t: 'Бицепс' },
+        { pats: ['triceps'], t: 'Трицепс' },
+        { pats: ['core'], t: 'Пресс' }
+      ] },
+      { key: 'B', name: 'Всё тело B', scope: null, maxEx: 8, slots: [
+        { pats: ['lunge', 'squat'], t: 'Ноги' },
+        { pats: ['hpush'], t: 'Жим' },
+        { pats: ['hpull', 'vpull'], t: 'Тяга' },
+        { pats: ['ham_iso'], t: 'Бицепс бедра' },
+        { pats: ['glute_iso'], t: 'Ягодицы' },
+        { pats: ['vpush'], t: 'Плечи' },
+        { pats: ['calves'], t: 'Икры' },
+        { pats: ['core'], t: 'Пресс' },
+        { pats: ['biceps'], t: 'Бицепс' }
+      ] },
+      { key: 'C', name: 'Всё тело C', scope: null, maxEx: 8, slots: [
+        { pats: ['squat', 'lunge'], t: 'Ноги' },
+        { pats: ['hpush'], t: 'Жим' },
+        { pats: ['vpull', 'hpull'], t: 'Тяга' },
+        { pats: ['hinge', 'glute_iso'], t: 'Таз' },
+        { pats: ['rear_delt', 'delt_iso'], t: 'Плечи' },
+        { pats: ['biceps'], t: 'Бицепс' },
+        { pats: ['triceps'], t: 'Трицепс' },
+        { pats: ['calves'], t: 'Икры' }
+      ] }
+    ],
+    4: [
+      { key: 'A', name: 'Верх A', scope: ['chest', 'back', 'shoulders', 'biceps', 'triceps', 'abs'], maxEx: 9, slots: [
+        { pats: ['hpush'], t: 'Жим' },
+        { pats: ['vpull'], t: 'Вертикальная тяга' },
+        { pats: ['vpush'], t: 'Плечи' },
+        { pats: ['hpull'], t: 'Горизонтальная тяга' },
+        { pats: ['delt_iso'], t: 'Дельты' },
+        { pats: ['biceps'], t: 'Бицепс' },
+        { pats: ['triceps'], t: 'Трицепс' },
+        { pats: ['core'], t: 'Пресс' }
+      ] },
+      { key: 'B', name: 'Низ A', scope: ['quads', 'ham', 'glutes', 'calves', 'abs'], maxEx: 8, slots: [
+        { pats: ['squat'], t: 'Приседание' },
+        { pats: ['hinge'], t: 'Таз' },
+        { pats: ['quad_iso'], t: 'Квадрицепс' },
+        { pats: ['ham_iso'], t: 'Бицепс бедра' },
+        { pats: ['glute_iso'], t: 'Ягодицы' },
+        { pats: ['calves'], t: 'Икры' },
+        { pats: ['core'], t: 'Пресс' }
+      ] },
+      { key: 'C', name: 'Верх B', scope: ['chest', 'back', 'shoulders', 'biceps', 'triceps', 'abs'], maxEx: 8, slots: [
+        { pats: ['hpush'], t: 'Жим' },
+        { pats: ['hpull'], t: 'Тяга' },
+        { pats: ['chest_iso'], t: 'Грудь' },
+        { pats: ['rear_delt'], t: 'Задняя дельта' },
+        { pats: ['biceps'], t: 'Бицепс' },
+        { pats: ['triceps'], t: 'Трицепс' },
+        { pats: ['core'], t: 'Пресс' }
+      ] },
+      { key: 'D', name: 'Низ B', scope: ['quads', 'ham', 'glutes', 'calves', 'abs'], maxEx: 8, slots: [
+        { pats: ['lunge', 'squat'], t: 'Ноги' },
+        { pats: ['hinge'], t: 'Таз' },
+        { pats: ['quad_iso'], t: 'Квадрицепс' },
+        { pats: ['ham_iso'], t: 'Бицепс бедра' },
+        { pats: ['glute_iso'], t: 'Ягодицы' },
+        { pats: ['calves'], t: 'Икры' },
+        { pats: ['core'], t: 'Пресс' }
+      ] }
+    ]
+  };
+
   /* крупные группы для конструктора дней */
   var BUILD_GROUPS = [
     { k: 'legs', t: 'Ноги', g: ['quads', 'ham', 'glutes', 'calves'] },
@@ -235,6 +338,7 @@ var D = (function () {
   return {
     EQUIP: EQUIP, GROUP: GROUP, GORDER: GORDER, FILTERS: FILTERS,
     EXERCISES: EXERCISES, BY_ID: BY_ID, DAY_TEMPLATES: DAY_TEMPLATES,
+    SPLITS: SPLITS,
     BUILD_GROUPS: BUILD_GROUPS, GROUP_PATS: GROUP_PATS,
     GOALS: GOALS, STEP: STEP, DEFAULT_W: DEFAULT_W
   };

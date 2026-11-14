@@ -67,7 +67,7 @@
 
   function modeBlock() {
     var cards = [
-      { k: 'auto', b: 'Авто', i: 'Готовые схемы: всё тело, тяга и плечи, объём' },
+      { k: 'auto', b: 'Авто', i: 'Фулбоди 2–3 дня или верх/низ 4 дня, 10–20 подходов на мышцу' },
       { k: 'custom', b: 'Сам', i: 'Выбираю группы мышц для каждого дня' }
     ];
     return '<div class="sect"><span class="eyebrow">Как собирать дни</span><div class="stack-s">' +
@@ -290,6 +290,51 @@
       '</div></article>';
   }
 
+  function volumePanel() {
+    var vol = DS.weekVolume();
+    var freq = DS.weekFrequency();
+    var rows = [], norm = 0, total = 0;
+    D.GORDER.forEach(function (m) {
+      if (m === 'traps' && !(vol[m] > 0)) return;
+      var t = DS.volTarget(m), v = vol[m] || 0;
+      total++;
+      var st = v < t[0] ? 'low' : v > t[1] ? 'high' : 'ok';
+      if (st === 'ok') norm++;
+      var pct = Math.max(3, Math.min(100, (v / t[1]) * 100));
+      var f = freq[m] || 0;
+      rows.push('<div class="volrow ' + st + '">' +
+        '<span class="vol-n">' + D.GROUP[m] + (f ? '<i>×' + f + '</i>' : '') + '</span>' +
+        '<span class="vol-bar"><i style="width:' + pct.toFixed(1) + '%"></i></span>' +
+        '<span class="vol-v">' + Math.round(v) + '</span>' +
+        '<span class="vol-t">' + t[0] + '–' + t[1] + '</span></div>');
+    });
+    if (!rows.length) return '';
+    return '<details class="vol" open><summary><span class="eyebrow">Объём недели</span>' +
+      '<span class="vol-sum' + (norm === total ? ' ok' : '') + '">' + norm + ' из ' + total + ' в норме</span></summary>' +
+      '<div class="vol-body">' + rows.join('') +
+      '<p class="hint">Подходы на мышцу за неделю, косвенная работа от базы учтена. Ориентир 10–20; при 2 днях цель ниже, чтобы уложиться в 50–70 минут. × — сколько раз мышца нагружается за неделю.</p>' +
+      '</div></details>';
+  }
+
+  function deloadNote() {
+    var d = DS.deloadState();
+    if (d) {
+      return '<div class="note note-col"><div><b>' +
+        (d.active ? 'Разгрузочная неделя.' : 'Разгрузка закончена.') + '</b> ' +
+        (d.active
+          ? 'Подходы срезаны на 40%. Это снимает накопленную усталость — мышцы не теряются.'
+          : 'Прошла неделя. Верни рабочий объём и продолжай прогрессию.') +
+        '</div><div class="note-actions">' +
+        '<button class="btn ghost sm" data-act="endDeload">Вернуть объём</button>' +
+        '</div></div>';
+    }
+    if (DS.needsDeload()) {
+      return '<div class="note note-col"><div><b>6 недель.</b> Пора разгрузиться: срежем подходы на 40% на неделю. Веса и история сохранятся.</div>' +
+        '<div class="note-actions"><button class="btn ghost sm" data-act="startDeload">Разгрузить на неделю</button></div></div>';
+    }
+    return '';
+  }
+
   function screenProgram() {
     if (!S.onboarded) return '';
     if (!S.program || !S.program.days.length) {
@@ -301,10 +346,7 @@
 
     var days = S.program.days;
     var week = DS.weekCount();
-    var old = Date.now() - S.program.createdAt > 21 * 86400000;
-    var banner = old
-      ? '<div class="note"><div><b>Пора обновить.</b> Программа работает уже больше трёх недель. Собери новую — веса и история сохранятся.</div></div>'
-      : '';
+    var banner = deloadNote();
     var shortDays = days.filter(function (d) { return DS.daySeconds(d.items) < DS.MIN_SESSION; });
     var shortNote = shortDays.length
       ? '<div class="note"><div><b>День короче 50 минут.</b> В выбранных группах не хватает упражнений — добавь ещё, и день дотянется до 50 минут.</div></div>'
@@ -323,6 +365,7 @@
       '<div class="weekdots">' + dots + '</div></div>' +
       banner +
       shortNote +
+      volumePanel() +
       days.map(dayCard).join('') +
       '<div class="actions">' +
       '<button class="btn ghost" data-act="regen">Пересобрать программу</button>' +
@@ -414,9 +457,10 @@
     var done = e.rows.filter(function (r) { return r.done; }).length;
     var allDone = done === e.rows.length;
     var dots = e.rows.map(function (r) { return '<i class="' + (r.done ? 'on' : '') + '"></i>'; }).join('');
+    var rir = (e.rir === 0 || e.rir) ? ' · RIR ' + e.rir : '';
     return '<section class="ex-block ' + (allDone ? 'done' : '') + '">' +
       '<div class="ex-head"><div class="ex-head-t"><h3>' + DS.esc(ex.n) + '</h3>' +
-      '<div class="meta">' + e.sets + '×' + e.lo + '–' + e.hi + ' · отдых ' + DS.mmss(e.rest) + ' · ' + D.GROUP[ex.g] + '</div>' +
+      '<div class="meta">' + e.sets + '×' + e.lo + '–' + e.hi + rir + ' · отдых ' + DS.mmss(e.rest) + ' · ' + D.GROUP[ex.g] + '</div>' +
       '<div class="prev">' + entryPrev(e) + '</div></div>' +
       '<div class="dots">' + dots + '</div></div>' +
       e.rows.map(function (r, ri) { return setRow(e, ei, r, ri); }).join('') +
@@ -433,7 +477,8 @@
       '<h2 class="sess-name">' + DS.esc(a.name) + '</h2></div>' +
       '<div class="sess-time num" id="elapsed">0:00</div>' +
       '</div>' +
-      '<div class="pad sess-prog"><div class="track"><div class="fill" style="width:' + pct + '%"></div></div></div>' +
+      '<div class="pad sess-prog"><div class="track"><div class="fill" style="width:' + pct + '%"></div></div>' +
+      '<div class="sess-hint">RIR — сколько повторов остаётся до отказа. База: 1–3, изоляция: 0–2.</div></div>' +
       '</header>' +
       '<div class="wrap pb-session">' +
       a.entries.map(exBlock).join('') +
@@ -907,6 +952,13 @@
       '<button class="srow" data-act="importClick"><span class="n">Импорт данных</span>' + IC.up + '</button>' +
       '</div></div>' +
 
+      '<div class="sect"><span class="eyebrow">Методика</span><div class="card list">' +
+      '<div class="met"><b>Объём</b><span>10–20 подходов на мышцу в неделю, косвенная работа учтена</span></div>' +
+      '<div class="met"><b>Частота</b><span>Каждая мышца 2+ раза в неделю — 2–3 фулбоди или верх/низ</span></div>' +
+      '<div class="met"><b>Интенсивность</b><span>База 1–3 RIR, изоляция 0–2 RIR в последнем подходе</span></div>' +
+      '<div class="met"><b>Разгрузка</b><span>После 6 недель — минус 40% подходов на неделю</span></div>' +
+      '</div><p class="hint">Helms, Nippard, Schoenfeld, Renaissance Periodization.</p></div>' +
+
       '<div class="sect"><button class="btn dan" data-act="reset">Сбросить всё</button></div>' +
 
       '<div class="sect"><p class="sub center">Disciplina · версия 0.1<br>Данные не покидают устройство</p></div>' +
@@ -1320,6 +1372,18 @@
       case 'histMore':
         UI.histLimit = (UI.histLimit || 60) + 60;
         render();
+        break;
+
+      case 'startDeload':
+        DS.startDeload();
+        render();
+        DS.toast('Разгрузочная неделя: подходы минус 40%');
+        break;
+
+      case 'endDeload':
+        DS.endDeload();
+        render();
+        DS.toast('Рабочий объём возвращён');
         break;
 
       case 'export':
